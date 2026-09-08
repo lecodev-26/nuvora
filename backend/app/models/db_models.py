@@ -1,0 +1,28 @@
+from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy.sql import func
+from app.database.config import Base
+
+class Bot(Base):
+    __tablename__ = "bots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    restaurant_name = Column(String(200), nullable=False)
+    owner_email = Column(String(100), nullable=False)
+    plan = Column(String(20), default="free")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<Bot {self.id}: {self.name}>"
+
+class Memory(Base):
+    __tablename__ = "memories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, nullable=False)
+    fact = Column(Text, nullable=False)
+    keyword = Column(String(100), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<Memory {self.id}: {self.keyword} -> {self.fact[:50]}...>"
