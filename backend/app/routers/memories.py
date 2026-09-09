@@ -13,20 +13,13 @@ def add_memory(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Añade un nuevo hecho (memoria) a un bot.
-    Solo el dueño del bot puede añadir memorias.
-    """
-    # Verificar que el bot existe
     bot = db.query(Bot).filter(Bot.id == memory_data.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot no encontrado")
 
-    # Verificar que el usuario es el dueño del bot
     if bot.owner_email != current_user.email:
         raise HTTPException(status_code=403, detail="No tienes permiso para modificar este bot")
 
-    # Crear nueva memoria
     new_memory = Memory(
         bot_id=memory_data.bot_id,
         fact=memory_data.fact,
@@ -50,15 +43,10 @@ def get_memories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Obtiene todas las memorias de un bot específico.
-    Solo el dueño del bot puede ver sus memorias.
-    """
     bot = db.query(Bot).filter(Bot.id == bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot no encontrado")
 
-    # Verificar que el usuario es el dueño del bot
     if bot.owner_email != current_user.email:
         raise HTTPException(status_code=403, detail="No tienes permiso para ver este bot")
 

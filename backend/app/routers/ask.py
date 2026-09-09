@@ -9,11 +9,10 @@ from app.services.auth import get_current_user
 router = APIRouter(prefix="/ask", tags=["ask"])
 
 # ============================================================
-# LÓGICA COMPARTIDA DE BÚSQUEDA
+# BÚSQUEDA POR KEYWORD (FALLBACK)
 # ============================================================
 
 def search_memories(memories, question: str):
-    """Busca en las memorias y devuelve la mejor coincidencia."""
     question_lower = question.lower()
     
     stopwords = {"qué", "cuál", "cómo", "dónde", "cuándo", "quién", "para", "por", "con", "sin", "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al", "a", "e", "y", "o", "u", "mi", "tu", "su", "nuestro", "vuestro", "me", "te", "se", "nos", "os", "lo", "la", "le", "les", "los", "las", "más", "menos", "muy", "tan", "tanto", "demasiado", "algo", "nada", "todo", "siempre", "nunca", "quizás", "tal", "vez"}
@@ -46,7 +45,6 @@ def search_memories(memories, question: str):
         return None, False
 
 def save_conversation(db: Session, bot_id: int, question: str, answer: Optional[str], was_answered: bool, session_id: Optional[str] = None):
-    """Guarda una conversación en la base de datos."""
     conversation = Conversation(
         bot_id=bot_id,
         question=question,
@@ -66,16 +64,10 @@ def ask_question_public(
     request: AskRequest,
     db: Session = Depends(get_db)
 ):
-    """
-    Endpoint público para el widget.
-    Cualquier visitante puede hacer preguntas sin autenticación.
-    """
-    # Verificar que el bot existe
     bot = db.query(Bot).filter(Bot.id == request.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot no encontrado")
 
-    # Obtener memorias del bot
     memories = db.query(Memory).filter(Memory.bot_id == request.bot_id).all()
 
     if not memories:
@@ -86,7 +78,6 @@ def ask_question_public(
         if not was_answered:
             answer_text = "No tengo esa información en mi memoria. Te recomiendo contactar directamente con el restaurante."
 
-    # Guardar conversación
     save_conversation(
         db=db,
         bot_id=request.bot_id,
@@ -108,11 +99,6 @@ def ask_question_private(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Endpoint privado para el dashboard.
-    Solo el dueño del bot puede hacer preguntas.
-    """
-    # Verificar que el bot existe y el usuario es dueño
     bot = db.query(Bot).filter(Bot.id == request.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot no encontrado")
@@ -120,7 +106,6 @@ def ask_question_private(
     if bot.owner_email != current_user.email:
         raise HTTPException(status_code=403, detail="No tienes permiso para usar este bot")
 
-    # Obtener memorias del bot
     memories = db.query(Memory).filter(Memory.bot_id == request.bot_id).all()
 
     if not memories:
@@ -131,7 +116,6 @@ def ask_question_private(
         if not was_answered:
             answer_text = "No tengo esa información en mi memoria. Te recomiendo contactar directamente con el restaurante."
 
-    # Guardar conversación (con session_id si se proporciona)
     save_conversation(
         db=db,
         bot_id=request.bot_id,
