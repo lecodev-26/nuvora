@@ -2,7 +2,9 @@
 (function() {
     // Configuración
     const API_URL = 'http://localhost:8000';
-    const BOT_ID = 1; // Por ahora fijo, luego vendrá del script
+    // Obtener bot_id del atributo data-bot-id del script
+const scriptTag = document.currentScript;
+const BOT_ID = scriptTag ? parseInt(scriptTag.getAttribute('data-bot-id')) || 1 : 1;
 
     // Crear estilos del widget
     const styles = `
@@ -107,6 +109,38 @@
             font-style: italic;
             padding: 10px 14px;
         }
+#nuvora-header {
+    background: #6C63FF;
+    color: white;
+    padding: 15px;
+    font-weight: bold;
+    font-size: 16px;
+    text-align: center;
+    border-bottom: 3px solid #5a52d5;
+}
+
+#nuvora-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f5f5f5;
+    min-height: 200px;
+    max-height: 350px;
+}
+
+.nuvora-message {
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    max-width: 85%;
+    word-wrap: break-word;
+    animation: nuvora-fade-in 0.3s ease;
+}
+
+@keyframes nuvora-fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
     `;
 
     // Inyectar estilos
