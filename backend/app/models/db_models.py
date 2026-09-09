@@ -26,3 +26,16 @@ class Memory(Base):
 
     def __repr__(self):
         return f"<Memory {self.id}: {self.keyword} -> {self.fact[:50]}...>"
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(100), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(200), nullable=False)
+    full_name = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Integer, default=1)
+
+    def __repr__(self):
+        return f"<User {self.id}: {self.email}>"
