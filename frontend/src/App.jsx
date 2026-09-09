@@ -1,12 +1,11 @@
 import React from 'react';
-import { BotProvider } from './context/BotContext';
-import Dashboard from './pages/Dashboard';
+import NuvoraDashboard from './pages/Dashboard';
 
 function App() {
   return (
-    <BotProvider>
-      <Dashboard />
-    </BotProvider>
+    <div>
+      <NuvoraDashboard />
+    </div>
   );
 }
 

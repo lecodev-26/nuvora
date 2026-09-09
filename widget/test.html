@@ -3,14 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <title>Nuvora - Widget Test</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #0A0A14;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            text-align: center;
+        }
+        .card img {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            background: linear-gradient(90deg, #00C6FF, #7B5CFF, #FF4ECD);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        p { color: rgba(255,255,255,0.6); }
+        .badge {
+            display: inline-block;
+            background: rgba(123,92,255,0.2);
+            color: #A5B4FF;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
-    <h1>🚀 Nuvora Widget</h1>
-    <p>Este es un restaurante de prueba con el chatbot.</p>
+    <div class="card">
+        <img src="https://raw.githubusercontent.com/lecodev-26/nuvora/main/assets/logo.png" alt="Nuvora">
+        <h1>🍽️ Nuvora</h1>
+        <p>Asistente inteligente para restaurantes</p>
+        <div class="badge">💬 Widget en prueba</div>
+    </div>
 
-    <!-- Cargar el widget con bot-id específico -->
+    <!-- Widget con bot-id dinámico -->
     <script src="widget.js" data-bot-id="1"></script>
-
-    <p>Puedes cambiar el bot-id en el script para probar diferentes bots.</p>
 </body>
 </html>
