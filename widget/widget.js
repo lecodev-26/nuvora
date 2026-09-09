@@ -1,6 +1,13 @@
 (function() {
   const botId = document.currentScript.getAttribute('data-bot-id');
-  const API_URL = 'https://nuvora-api-1hql.onrender.com/ask/';
+  const API_URL = 'https://nuvora-api-1hql.onrender.com/ask/public';
+
+  // Generar session_id anónimo
+  function generateSessionId() {
+    return 'sess_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  }
+  const sessionId = sessionStorage.getItem('nuvora_session_id') || generateSessionId();
+  sessionStorage.setItem('nuvora_session_id', sessionId);
 
   // Estilos
   const style = document.createElement('style');
@@ -72,7 +79,11 @@
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bot_id: parseInt(botId), question: text })
+        body: JSON.stringify({
+          bot_id: parseInt(botId),
+          question: text,
+          session_id: sessionId
+        })
       });
       const data = await res.json();
       addMsg(data.answer || 'No tengo esa información.', 'bot');
@@ -87,4 +98,3 @@
   inputEl.onkeydown = e => { if(e.key==='Enter') sendMessage(inputEl.value); };
   win.querySelectorAll('.n-chip').forEach(c => c.onclick = () => sendMessage(c.dataset.q));
 })();
-

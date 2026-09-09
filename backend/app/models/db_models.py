@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean
 from sqlalchemy.sql import func
 from app.database.config import Base
 
@@ -47,3 +47,17 @@ class User(Base):
 
     def __repr__(self):
         return f"<User {self.id}: {self.email}>"
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(Integer, nullable=False)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=True)
+    was_answered = Column(Boolean, default=False)
+    session_id = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<Conversation {self.id}: bot={self.bot_id} answered={self.was_answered}>"

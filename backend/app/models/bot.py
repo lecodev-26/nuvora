@@ -6,7 +6,7 @@ class BotCreate(BaseModel):
     """Modelo para crear un nuevo bot"""
     name: str
     restaurant_name: str
-    owner_email: Optional[str] = None  # ← Ahora es opcional
+    owner_email: Optional[str] = None
 
 class BotResponse(BaseModel):
     """Modelo para responder con datos del bot"""
@@ -22,3 +22,14 @@ class MemoryCreate(BaseModel):
     bot_id: int
     fact: str
     keyword: str
+
+class AskRequest(BaseModel):
+    """Modelo para hacer una pregunta al bot"""
+    bot_id: int
+    question: str
+    session_id: Optional[str] = None  # ← NUEVO: para analytics anónimo
+
+class AskResponse(BaseModel):
+    """Modelo para la respuesta del bot"""
+    answer: str
+    found: bool
