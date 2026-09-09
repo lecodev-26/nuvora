@@ -15,7 +15,11 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+    "https://tu-frontend.vercel.app",  # Cuando tengas el deploy
+    "http://localhost:5173",           # Desarrollo local
+    "http://localhost:8080",           # Para el widget
+],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
