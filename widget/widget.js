@@ -1,6 +1,6 @@
 (function() {
   const botId = document.currentScript.getAttribute('data-bot-id');
-  const API_URL = 'http://localhost:8000/ask/';
+  const API_URL = 'https://nuvora-api-1hql.onrender.com/ask/';
 
   // Estilos
   const style = document.createElement('style');
