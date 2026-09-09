@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from app.routers import bots, memories, ask, auth, payments
+from app.routers import bots, memories, ask, auth, payments, analytics
 
 load_dotenv()
 
@@ -31,6 +31,7 @@ app.include_router(memories.router)
 app.include_router(ask.router)
 app.include_router(auth.router)
 app.include_router(payments.router)
+app.include_router(analytics.router)
 
 @app.get("/health")
 def health_check():
