@@ -37,5 +37,13 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Integer, default=1)
 
+    # Nuvora Service Fields
+    trial_start = Column(DateTime(timezone=True), nullable=True)
+    trial_end = Column(DateTime(timezone=True), nullable=True)
+    service_status = Column(String(20), default="trial")  # trial | active | expired
+    payment_date = Column(DateTime(timezone=True), nullable=True)
+    expiration_date = Column(DateTime(timezone=True), nullable=True)
+    stripe_customer_id = Column(String(100), nullable=True)
+
     def __repr__(self):
         return f"<User {self.id}: {self.email}>"
