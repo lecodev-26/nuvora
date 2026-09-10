@@ -215,9 +215,7 @@ def test_analyzer_nicho_fallback_unknown():
         db = SessionLocal()
         analyzer = TrainingAnalyzer(db)
         report = analyzer.analyze(bot_id)
-        # El bot mantiene su nicho_id real (no se modifica)
         assert report.nicho_id == "inexistente"
-        # Pero el catálogo hace fallback → topics de "otro" (8)
         assert report.total_topics == 8
         print(f"✅ nicho_id={report.nicho_id}, topics={report.total_topics} (fallback otro)")
         db.close()
@@ -228,14 +226,6 @@ def test_analyzer_nicho_fallback_unknown():
 def test_analyzer_nicho_default_otro():
     """
     TEST 5 — Comportamiento ACTUAL del modelo (no arquitectura definitiva).
-
-    El modelo Bot actualmente tiene default="otro". Un bot creado con
-    nicho_id=None acaba almacenando "otro" en la BD.
-
-    Esto NO es la arquitectura definitiva. En una fase futura se revisará
-    para permitir nicho_id=None en bots "Desde cero".
-
-    Ver el comentario del módulo (arriba) para detalles.
     """
     print("\n" + "=" * 70)
     print("TEST 5: nicho_id=None → default actual aplica 'otro'")
@@ -246,14 +236,8 @@ def test_analyzer_nicho_default_otro():
         analyzer = TrainingAnalyzer(db)
         report = analyzer.analyze(bot_id)
 
-        # COMPORTAMIENTO ACTUAL: default="otro" aplicado por el modelo
-        # NO es la arquitectura definitiva.
-        assert report.nicho_id == "otro", (
-            f"Comportamiento actual esperado: 'otro' (default del modelo). "
-            f"Si ves None, alguien ha modificado el modelo Bot sin actualizar tests. "
-            f"Recibido: {report.nicho_id!r}"
-        )
-        assert report.total_topics == 8  # catálogo "otro" tiene 8 topics
+        assert report.nicho_id == "otro"
+        assert report.total_topics == 8
         print(f"✅ nicho_id={report.nicho_id!r} (default aplicado), topics={report.total_topics}")
         print(f"   TODO: en una fase futura, nicho_id debería poder ser None para 'Desde cero'")
         db.close()
@@ -322,14 +306,19 @@ def test_analyzer_topics_from_nicho():
         cleanup_bot(bot_id)
 
 
-def test_analyzer_stub_coverage_all_missing():
+def test_analyzer_bot_without_knowledge_all_missing():
+    """
+    TEST 9 (actualizado en 14.4.3):
+    Un bot SIN conocimiento (sin memories ni sources) → todos los topics MISSING.
+
+    (Antes de 14.4.3 este test era un "STUB → todos MISSING".
+    Ahora es real: comprueba el comportamiento con bot vacío.)
+    """
     print("\n" + "=" * 70)
-    print("TEST 9: STUB 14.4.2 → todos los topics MISSING")
+    print("TEST 9: Bot sin conocimiento → todos MISSING")
     print("=" * 70)
     user_id, bot_id = setup_test_user_bot("stub")
     try:
-        add_memory(bot_id, "Abrimos de 9:00 a 18:00", "horario")
-
         db = SessionLocal()
         analyzer = TrainingAnalyzer(db)
         report = analyzer.analyze(bot_id)
@@ -340,21 +329,23 @@ def test_analyzer_stub_coverage_all_missing():
         )
         assert report.covered_count == 0
         assert report.partial_count == 0
-        assert report.missing_count == 0
-        print(f"✅ STUB: todos MISSING, contadores en 0")
+        assert report.missing_count == report.total_topics
+        print(f"✅ Bot sin conocimiento: todos MISSING, missing_count={report.missing_count}")
         db.close()
     finally:
         cleanup_bot(bot_id)
 
 
-def test_analyzer_stub_progress_zero():
+def test_analyzer_bot_without_knowledge_progress_zero():
+    """
+    TEST 10 (actualizado en 14.4.3):
+    Un bot SIN conocimiento → progress = 0.0
+    """
     print("\n" + "=" * 70)
-    print("TEST 10: STUB 14.4.2 → progress=0.0")
+    print("TEST 10: Bot sin conocimiento → progress=0.0")
     print("=" * 70)
     user_id, bot_id = setup_test_user_bot("progress")
     try:
-        add_memory(bot_id, "Abrimos de 9:00 a 18:00", "horario")
-
         db = SessionLocal()
         analyzer = TrainingAnalyzer(db)
         report = analyzer.analyze(bot_id)
@@ -435,8 +426,8 @@ def main():
         test_analyzer_counts_memories,
         test_analyzer_counts_ready_sources_only,
         test_analyzer_topics_from_nicho,
-        test_analyzer_stub_coverage_all_missing,
-        test_analyzer_stub_progress_zero,
+        test_analyzer_bot_without_knowledge_all_missing,
+        test_analyzer_bot_without_knowledge_progress_zero,
         test_analyzer_conversation_limit_param,
         test_analyzer_no_side_effects,
     ]
