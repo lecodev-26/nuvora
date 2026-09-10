@@ -1,59 +1,54 @@
+"""
+Nuvora Core — Router /ask
+Endpoints públicos y privados para hacer preguntas al bot.
+Este router es solo una capa fina que:
+1. Valida permisos (si aplica)
+2. Traduce a ChannelRequest
+3. Delega en el Orchestrator
+4. Devuelve AskResponse
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional
+
 from app.database.config import get_db
 from app.models.bot import AskRequest, AskResponse
-from app.models.db_models import Bot, Memory, User, Conversation
+from app.models.db_models import Bot, User
 from app.services.auth import get_current_user
+
+from app.core.contracts import ChannelRequest, ChannelResponse
+from app.core.orchestrator import Orchestrator
+
 
 router = APIRouter(prefix="/ask", tags=["ask"])
 
+
 # ============================================================
-# BÚSQUEDA POR KEYWORD (FALLBACK)
+# HELPER — Validar ownership (compatible nuevo/antiguo)
 # ============================================================
 
-def search_memories(memories, question: str):
-    question_lower = question.lower()
-    
-    stopwords = {"qué", "cuál", "cómo", "dónde", "cuándo", "quién", "para", "por", "con", "sin", "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al", "a", "e", "y", "o", "u", "mi", "tu", "su", "nuestro", "vuestro", "me", "te", "se", "nos", "os", "lo", "la", "le", "les", "los", "las", "más", "menos", "muy", "tan", "tanto", "demasiado", "algo", "nada", "todo", "siempre", "nunca", "quizás", "tal", "vez"}
+def _verify_bot_ownership(bot: Bot, current_user: User):
+    """Valida que el usuario es dueño del bot."""
+    if bot.user_id is not None:
+        if bot.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="No tienes permiso para usar este bot")
+        return
+    if bot.owner_email != current_user.email:
+        raise HTTPException(status_code=403, detail="No tienes permiso para usar este bot")
 
-    best_match = None
-    best_score = 0
 
-    for memory in memories:
-        keywords = [k.strip().lower() for k in memory.keyword.split(",")]
-        score = 0
-        for keyword in keywords:
-            if keyword in question_lower:
-                score += len(keyword)
-            words = question_lower.split()
-            for word in words:
-                if word in stopwords:
-                    continue
-                if keyword in word or word in keyword:
-                    score += min(len(keyword), len(word)) * 0.5
+# ============================================================
+# HELPER — Convertir respuesta del Core a AskResponse
+# ============================================================
 
-        if score > best_score:
-            best_score = score
-            best_match = memory
-
-    MIN_SCORE = 2
-
-    if best_match and best_score >= MIN_SCORE:
-        return best_match.fact, True
-    else:
-        return None, False
-
-def save_conversation(db: Session, bot_id: int, question: str, answer: Optional[str], was_answered: bool, session_id: Optional[str] = None):
-    conversation = Conversation(
-        bot_id=bot_id,
-        question=question,
-        answer=answer,
-        was_answered=was_answered,
-        session_id=session_id
+def _to_ask_response(core_response: ChannelResponse) -> AskResponse:
+    """Convierte la ChannelResponse del Core al AskResponse del endpoint."""
+    answer = core_response.answer or (
+        "No tengo esa información en mi memoria. "
+        "Te recomiendo contactar directamente con el negocio."
     )
-    db.add(conversation)
-    db.commit()
+    return AskResponse(answer=answer, found=core_response.found)
+
 
 # ============================================================
 # ENDPOINT PÚBLICO (WIDGET) — SIN AUTENTICACIÓN
@@ -62,32 +57,31 @@ def save_conversation(db: Session, bot_id: int, question: str, answer: Optional[
 @router.post("/public", response_model=AskResponse)
 def ask_question_public(
     request: AskRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
+    """
+    Endpoint público para el widget.
+    Cualquier visitante puede hacer preguntas sin autenticación.
+    Delega en el Core con channel="widget".
+    """
+    # Verificar que el bot existe (404 si no)
     bot = db.query(Bot).filter(Bot.id == request.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot no encontrado")
 
-    memories = db.query(Memory).filter(Memory.bot_id == request.bot_id).all()
-
-    if not memories:
-        answer_text = "Aún no tengo información sobre este restaurante. Por favor, contacta directamente con ellos."
-        was_answered = False
-    else:
-        answer_text, was_answered = search_memories(memories, request.question)
-        if not was_answered:
-            answer_text = "No tengo esa información en mi memoria. Te recomiendo contactar directamente con el restaurante."
-
-    save_conversation(
-        db=db,
+    # Delegar en el Core
+    core_request = ChannelRequest(
         bot_id=request.bot_id,
-        question=request.question,
-        answer=answer_text,
-        was_answered=was_answered,
-        session_id=request.session_id
+        session_id=request.session_id,
+        message=request.question,
+        channel="widget",
     )
 
-    return AskResponse(answer=answer_text, found=was_answered)
+    orchestrator = Orchestrator(db)
+    core_response = orchestrator.process(core_request)
+
+    return _to_ask_response(core_response)
+
 
 # ============================================================
 # ENDPOINT PRIVADO (DASHBOARD) — CON AUTENTICACIÓN
@@ -97,32 +91,30 @@ def ask_question_public(
 def ask_question_private(
     request: AskRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
+    """
+    Endpoint privado para el dashboard.
+    Solo el dueño del bot puede hacer preguntas.
+    Delega en el Core con channel="dashboard".
+    """
+    # Verificar que el bot existe
     bot = db.query(Bot).filter(Bot.id == request.bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot no encontrado")
 
-    if bot.owner_email != current_user.email:
-        raise HTTPException(status_code=403, detail="No tienes permiso para usar este bot")
+    # Validar ownership
+    _verify_bot_ownership(bot, current_user)
 
-    memories = db.query(Memory).filter(Memory.bot_id == request.bot_id).all()
-
-    if not memories:
-        answer_text = "Aún no tengo información sobre este restaurante. Por favor, contacta directamente con ellos."
-        was_answered = False
-    else:
-        answer_text, was_answered = search_memories(memories, request.question)
-        if not was_answered:
-            answer_text = "No tengo esa información en mi memoria. Te recomiendo contactar directamente con el restaurante."
-
-    save_conversation(
-        db=db,
+    # Delegar en el Core
+    core_request = ChannelRequest(
         bot_id=request.bot_id,
-        question=request.question,
-        answer=answer_text,
-        was_answered=was_answered,
-        session_id=request.session_id
+        session_id=request.session_id,
+        message=request.question,
+        channel="dashboard",
     )
 
-    return AskResponse(answer=answer_text, found=was_answered)
+    orchestrator = Orchestrator(db)
+    core_response = orchestrator.process(core_request)
+
+    return _to_ask_response(core_response)

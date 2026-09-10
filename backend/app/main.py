@@ -2,13 +2,13 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from app.routers import bots, memories, ask, auth, payments, analytics
+from app.routers import bots, memories, ask, auth, payments, analytics, categories
 
 load_dotenv()
 
 app = FastAPI(
     title=os.getenv("APP_NAME", "Nuvora API"),
-    description="Chatbot para restaurantes",
+    description="Chatbot universal para negocios",
     version=os.getenv("APP_VERSION", "0.1.0")
 )
 
@@ -32,6 +32,7 @@ app.include_router(ask.router)
 app.include_router(auth.router)
 app.include_router(payments.router)
 app.include_router(analytics.router)
+app.include_router(categories.router)
 
 @app.get("/health")
 def health_check():
