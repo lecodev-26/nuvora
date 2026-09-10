@@ -10,6 +10,7 @@ class Bot(Base):
     restaurant_name = Column(String(200), nullable=False)
     owner_email = Column(String(100), nullable=False)
     plan = Column(String(20), default="free")
+    nicho_id = Column(String(50), default="otro")  # ← NUEVO: nicho del negocio
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
@@ -40,7 +41,7 @@ class User(Base):
     # Nuvora Service Fields
     trial_start = Column(DateTime(timezone=True), nullable=True)
     trial_end = Column(DateTime(timezone=True), nullable=True)
-    service_status = Column(String(20), default="trial")  # trial | active | expired
+    service_status = Column(String(20), default="trial")
     payment_date = Column(DateTime(timezone=True), nullable=True)
     expiration_date = Column(DateTime(timezone=True), nullable=True)
     stripe_customer_id = Column(String(100), nullable=True)

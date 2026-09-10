@@ -1,68 +1,128 @@
-import { useState, useEffect } from 'react';
-import { botService, memoryService } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useBot } from '../context/BotContext';
+import { botService, memoryService, askService } from '../services/api';
+import Button from '../components/Button';
+import Card from '../components/Card';
+import Badge from '../components/Badge';
+import Input from '../components/Input';
 
-const LOGO_URL = 'https://raw.githubusercontent.com/lecodev-26/nuvora/main/assets/logo.png';
+const LOGO_URL = '/logo.png';
+const API_URL = import.meta.env.VITE_API_URL || 'https://nuvora-api-1hql.onrender.com';
 
-export default function NuvoraDashboard() {
-  const [bots, setBots] = useState([]);
-  const [form, setForm] = useState({ botName: '', resto: '', email: '' });
-  const [selectedBot, setSelectedBot] = useState(null);
+const Dashboard = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const { bots, setBots, selectedBot, setSelectedBot, loading, setLoading } = useBot();
+
+  // Estados
   const [memories, setMemories] = useState([]);
   const [newMemory, setNewMemory] = useState({ fact: '', keyword: '' });
+  const [newBot, setNewBot] = useState({ name: '', restaurant_name: '', owner_email: user?.email || '' });
+  const [showCreateBot, setShowCreateBot] = useState(false);
+  const [analytics, setAnalytics] = useState(null);
+  const [serviceStatus, setServiceStatus] = useState(null);
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   // Cargar bots al inicio
   useEffect(() => {
     loadBots();
+    loadServiceStatus();
   }, []);
 
+  // Cargar analytics cuando se selecciona un bot
+  useEffect(() => {
+    if (selectedBot) {
+      loadAnalytics(selectedBot.id);
+      loadMemories(selectedBot.id);
+    }
+  }, [selectedBot]);
+
   const loadBots = async () => {
+    setLoading(true);
     try {
       const response = await botService.list();
-      setBots(response.data);
+      setBots(response.data || []);
+      if (response.data && response.data.length > 0) {
+        setSelectedBot(response.data[0]);
+      }
     } catch (error) {
       console.error('Error cargando bots:', error);
     }
+    setLoading(false);
   };
 
   const loadMemories = async (botId) => {
     try {
       const response = await memoryService.getByBot(botId);
-      setMemories(response.data);
+      setMemories(response.data || []);
     } catch (error) {
       console.error('Error cargando memorias:', error);
     }
   };
 
-  const crearBot = async () => {
-    if (!form.botName || !form.resto) return;
+  const loadAnalytics = async (botId) => {
     try {
-      const response = await botService.create({
-        name: form.botName,
-        restaurant_name: form.resto,
-        owner_email: form.email || 'admin@nuvora.com'
+      const token = localStorage.getItem('nuvora_token');
+      const response = await fetch(`${API_URL}/analytics/by-bot/${botId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
-      setBots([{
-        id: response.data.id,
-        name: response.data.name,
-        resto: response.data.restaurant_name,
-        msgs: 0,
-        status: 'Online',
-        last: 'ahora'
-      }, ...bots]);
-      setForm({ botName: '', resto: '', email: '' });
+      if (response.ok) {
+        const data = await response.json();
+        setAnalytics(data);
+      }
     } catch (error) {
-      console.error('Error creando bot:', error);
+      console.error('Error cargando analytics:', error);
     }
   };
 
-  const handleSelectBot = (bot) => {
-    setSelectedBot(bot);
-    loadMemories(bot.id);
+  const loadServiceStatus = async () => {
+    try {
+      const token = localStorage.getItem('nuvora_token');
+      const response = await fetch(`${API_URL}/payments/status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServiceStatus(data);
+      }
+    } catch (error) {
+      console.error('Error cargando estado del servicio:', error);
+    }
+  };
+
+  const handleCreateBot = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const response = await botService.create({
+        name: newBot.name,
+        restaurant_name: newBot.restaurant_name,
+        owner_email: newBot.owner_email || user?.email,
+      });
+      setBots([...bots, response.data]);
+      setSelectedBot(response.data);
+      setNewBot({ name: '', restaurant_name: '', owner_email: user?.email || '' });
+      setShowCreateBot(false);
+    } catch (error) {
+      console.error('Error creando bot:', error);
+      alert('Error al crear el bot. Inténtalo de nuevo.');
+    }
+    setLoading(false);
   };
 
   const handleAddMemory = async (e) => {
     e.preventDefault();
     if (!selectedBot) return;
+    setLoading(true);
     try {
       await memoryService.add({
         bot_id: selectedBot.id,
@@ -73,155 +133,383 @@ export default function NuvoraDashboard() {
       loadMemories(selectedBot.id);
     } catch (error) {
       console.error('Error añadiendo memoria:', error);
+      alert('Error al añadir la memoria. Inténtalo de nuevo.');
     }
+    setLoading(false);
   };
 
+  const handleAskQuestion = async (e) => {
+    e.preventDefault();
+    if (!selectedBot || !chatQuestion.trim()) return;
+
+    const question = chatQuestion.trim();
+    setChatMessages([...chatMessages, { type: 'user', text: question }]);
+    setChatQuestion('');
+    setIsTyping(true);
+
+    try {
+      const response = await askService.ask(selectedBot.id, question);
+      const answer = response.data.answer || 'No tengo esa información en mi memoria.';
+      setChatMessages(prev => [...prev, { type: 'bot', text: answer }]);
+    } catch (error) {
+      console.error('Error preguntando:', error);
+      setChatMessages(prev => [...prev, { type: 'bot', text: 'Hubo un error al procesar tu pregunta.' }]);
+    }
+    setIsTyping(false);
+  };
+
+  // ============================================================
+  // MANEJAR PAGO CON STRIPE
+  // ============================================================
+  const handlePayment = async () => {
+    setPaymentLoading(true);
+    try {
+      const token = localStorage.getItem('nuvora_token');
+      const response = await fetch(`${API_URL}/payments/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Redirigir a Stripe Checkout
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert('Error al crear la sesión de pago. Inténtalo de nuevo.');
+        }
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Error al iniciar el pago.');
+      }
+    } catch (error) {
+      console.error('Error en el pago:', error);
+      alert('Error de conexión. Inténtalo de nuevo.');
+    }
+    setPaymentLoading(false);
+  };
+
+  // ============================================================
+  // RENDERIZAR ESTADO DEL SERVICIO
+  // ============================================================
+  const renderServiceStatus = () => {
+    if (!serviceStatus) return (
+      <Card className="p-4 border-white/10">
+        <p className="text-white/30 text-sm">Cargando estado del servicio...</p>
+      </Card>
+    );
+
+    const statusMap = {
+      trial: { label: 'Prueba gratuita', color: 'trial', icon: '🟡', message: 'Estás en periodo de prueba.' },
+      active: { label: 'Activo', color: 'active', icon: '🟢', message: 'Tu servicio está activo.' },
+      expired: { label: 'Expirado', color: 'expired', icon: '🔴', message: 'Tu servicio ha expirado.' },
+    };
+
+    const status = statusMap[serviceStatus.status] || statusMap.trial;
+    const daysLeft = serviceStatus.days_left !== null ? serviceStatus.days_left : serviceStatus.trial_days_left;
+
+    return (
+      <Card className="p-4 border-white/10 bg-gradient-hero">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{status.icon}</span>
+            <div>
+              <p className="text-sm font-semibold">Estado del servicio</p>
+              <Badge variant={status.color}>{status.label}</Badge>
+              <p className="text-xs text-white/40 mt-0.5">{status.message}</p>
+            </div>
+          </div>
+
+          <div className="text-left md:text-right">
+            {daysLeft !== null && daysLeft !== undefined && (
+              <p className="text-sm font-medium">
+                {daysLeft > 0
+                  ? `${daysLeft} días restantes`
+                  : 'Sin días restantes'}
+              </p>
+            )}
+            {serviceStatus.expiration_date && (
+              <p className="text-xs text-white/30">
+                Expira: {new Date(serviceStatus.expiration_date).toLocaleDateString()}
+              </p>
+            )}
+            {serviceStatus.payment_date && (
+              <p className="text-xs text-white/30">
+                Pago: {new Date(serviceStatus.payment_date).toLocaleDateString()}
+              </p>
+            )}
+
+            {/* Botón de pago */}
+            {(serviceStatus.status === 'trial' || serviceStatus.status === 'expired') && (
+              <Button
+                variant="primary"
+                size="sm"
+                className="mt-2 animate-pulse-glow"
+                onClick={handlePayment}
+                disabled={paymentLoading}
+              >
+                {paymentLoading ? 'Cargando...' : 'Activar por 29,99 € →'}
+              </Button>
+            )}
+
+            {serviceStatus.status === 'active' && (
+              <p className="text-xs text-emerald-400 mt-1">✓ Servicio activo</p>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
-    <div className="min-h-screen bg-[#0A0A14] text-white font-['Inter'] p-4 md:p-6">
-      {/* Glow de fondo */}
-      <div className="fixed top-0 left-0 w-[500px] h-[500px] bg-[#00C6FF]/20 blur-[150px] rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-      <div className="fixed bottom-0 right-0 w-[600px] h-[600px] bg-[#FF4ECD]/20 blur-[150px] rounded-full translate-x-1/3 translate-y-1/3 pointer-events-none" />
-
-      {/* HEADER */}
-      <header className="relative z-10 flex items-center justify-between border border-white/10 rounded-2xl bg-white/[0.04] backdrop-blur-xl px-6 py-4 mb-6">
-        <div className="flex items-center gap-4">
-          <img src={LOGO_URL} alt="Nuvora" className="w-10 h-10 rounded-xl object-cover" />
-          <h1 className="text-2xl font-bold">Nuvora <span className="text-white/50 font-normal ml-3 text-lg">Dashboard</span></h1>
+    <div className="min-h-screen bg-navy text-white flex">
+      {/* ============================================================
+          SIDEBAR
+          ============================================================ */}
+      <aside className="hidden md:flex flex-col w-64 bg-navy/80 border-r border-white/5 p-6 sticky top-0 h-screen">
+        <div className="flex items-center gap-3 mb-8">
+          <img src={LOGO_URL} alt="Nuvora" className="h-10 w-10 rounded-xl object-cover" />
+          <span className="text-xl font-bold">Nuvora</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center bg-white/10 rounded-full px-4 py-2 text-sm text-white/60">🔍 Buscar...</div>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#00C6FF] to-[#FF4ECD] p-[2px]">
-            <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-xs">AR</div>
+
+        <nav className="flex-1 space-y-1">
+          <button className="w-full text-left px-4 py-2.5 rounded-xl bg-white/10 text-white font-medium">
+            📊 Inicio
+          </button>
+          <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
+            🤖 Mi negocio
+          </button>
+          <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
+            💬 Conversaciones
+          </button>
+          <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
+            📈 Analíticas
+          </button>
+          <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
+            🔌 Instalar widget
+          </button>
+        </nav>
+
+        <div className="pt-6 border-t border-white/5 space-y-3">
+          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5">
+            <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center text-sm font-bold">
+              {user?.full_name?.[0] || 'U'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user?.full_name || 'Usuario'}</p>
+              <p className="text-xs text-white/40 truncate">{user?.email}</p>
+            </div>
           </div>
+          <Button variant="ghost" size="sm" className="w-full" onClick={logout}>
+            Cerrar sesión
+          </Button>
         </div>
-      </header>
+      </aside>
 
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 max-w-[1600px] mx-auto">
-        {/* CREAR BOT */}
-        <div className="h-fit rounded-[20px] border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] backdrop-blur-xl p-6 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]">
-          <h2 className="text-xl font-bold mb-1 flex gap-2 items-center">🤖 Crear Nuevo Bot</h2>
-          <p className="text-sm text-white/50 mb-6">Configura tu asistente AI para tu restaurante en segundos</p>
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-white/70 mb-2 block">Nombre del bot</label>
-              <input
-                value={form.botName}
-                onChange={e => setForm({ ...form, botName: e.target.value })}
-                placeholder="Asistente Reservas"
-                className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7B5CFF] placeholder:text-white/30"
-              />
+      {/* ============================================================
+          CONTENIDO PRINCIPAL
+          ============================================================ */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header móvil */}
+          <div className="flex md:hidden items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src={LOGO_URL} alt="Nuvora" className="h-8 w-8 rounded-lg object-cover" />
+              <span className="text-lg font-bold">Nuvora</span>
             </div>
-            <div>
-              <label className="text-xs text-white/70 mb-2 block">Nombre del restaurante</label>
-              <input
-                value={form.resto}
-                onChange={e => setForm({ ...form, resto: e.target.value })}
-                placeholder="La Trattoria Roma"
-                className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7B5CFF] placeholder:text-white/30"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-white/70 mb-2 block">Email del propietario</label>
-              <input
-                value={form.email}
-                onChange={e => setForm({ ...form, email: e.target.value })}
-                placeholder="propietario@email.com"
-                className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7B5CFF] placeholder:text-white/30"
-              />
-            </div>
-            <button
-              onClick={crearBot}
-              className="w-full mt-2 rounded-xl py-3.5 font-semibold bg-gradient-to-r from-[#00C6FF] to-[#FF4ECD] hover:opacity-90 transition shadow-[0_0_20px_rgba(123,92,255,0.4)]"
-            >
-              + Crear Bot
+            <button onClick={logout} className="text-white/50 text-sm">
+              Salir
             </button>
-            <p className="text-[11px] text-center text-white/40">El bot estará listo en menos de 1 minuto</p>
-          </div>
-        </div>
-
-        {/* DERECHA */}
-        <div className="space-y-6">
-          {/* STATS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { label: 'Mensajes hoy', value: '1,240', sub: '+12.5% vs ayer' },
-              { label: 'Tasa de respuesta', value: '98.2%', sub: '+1.8% vs ayer' },
-              { label: 'Satisfacción', value: '4.7/5', sub: 'Promedio 112 reseñas' },
-            ].map(s => (
-              <div key={s.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-                <p className="text-xs text-white/50">{s.label}</p>
-                <p className="text-3xl font-bold mt-2">{s.value}</p>
-                <p className="text-xs text-emerald-400 mt-1">{s.sub}</p>
-              </div>
-            ))}
           </div>
 
-          {/* TUS BOTS */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">Tus Bots</h3>
-              <span className="text-xs bg-white/10 px-3 py-1 rounded-full">{bots.length} activos</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {bots.map(b => (
-                <div
-                  key={b.id}
-                  onClick={() => handleSelectBot(b)}
-                  className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-5 hover:border-[#7B5CFF]/50 transition cursor-pointer"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1" />
-                    <span className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded-full">Online</span>
-                  </div>
-                  <h4 className="font-semibold mt-3">{b.name}</h4>
-                  <p className="text-sm text-white/50">{b.restaurant_name || b.resto}</p>
-                  <div className="mt-4 pt-4 border-t border-white/10 text-xs text-white/60">
-                    <p>{b.msgs || 0} mensajes gestionados</p>
-                    <p className="mt-1 text-white/40">Última actividad: {b.last || 'ahora'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Estado del servicio */}
+          {renderServiceStatus()}
 
-          {/* MEMORIAS DEL BOT SELECCIONADO */}
-          {selectedBot && (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-              <h4 className="font-bold mb-4">Memorias de {selectedBot.name}</h4>
-              <form onSubmit={handleAddMemory} className="flex gap-3 mb-4 flex-wrap">
-                <input
-                  type="text"
-                  placeholder="Hecho (ej: Abrimos a las 9:00)"
-                  value={newMemory.fact}
-                  onChange={(e) => setNewMemory({ ...newMemory, fact: e.target.value })}
-                  className="flex-1 bg-white/[0.06] border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#7B5CFF] placeholder:text-white/30"
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Palabra clave"
-                  value={newMemory.keyword}
-                  onChange={(e) => setNewMemory({ ...newMemory, keyword: e.target.value })}
-                  className="w-32 bg-white/[0.06] border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#7B5CFF] placeholder:text-white/30"
-                  required
-                />
-                <button type="submit" className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#00C6FF] to-[#7B5CFF] text-white font-semibold text-sm">
-                  Añadir
-                </button>
-              </form>
-              <ul className="space-y-2">
-                {memories.map(m => (
-                  <li key={m.id} className="bg-white/[0.04] px-4 py-2 rounded-xl text-sm flex justify-between">
-                    <span className="text-white/60">{m.keyword}:</span>
-                    <span>{m.fact}</span>
-                  </li>
-                ))}
-              </ul>
+          {/* Métricas */}
+          {analytics && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="p-4 text-center">
+                <p className="text-2xl font-bold">{analytics.total_conversations || 0}</p>
+                <p className="text-xs text-white/50">Total preguntas</p>
+              </Card>
+              <Card className="p-4 text-center">
+                <p className="text-2xl font-bold text-emerald-400">{analytics.answered || 0}</p>
+                <p className="text-xs text-white/50">Respondidas</p>
+              </Card>
+              <Card className="p-4 text-center">
+                <p className="text-2xl font-bold text-amber-400">{analytics.unanswered || 0}</p>
+                <p className="text-xs text-white/50">Sin respuesta</p>
+              </Card>
+              <Card className="p-4 text-center">
+                <p className="text-2xl font-bold text-cyan-400">{analytics.response_rate || 0}%</p>
+                <p className="text-xs text-white/50">Tasa de respuesta</p>
+              </Card>
             </div>
           )}
+
+          {/* Bots y Memorias */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Lista de bots */}
+            <Card className="p-4 lg:col-span-1">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">Tus bots</h3>
+                <Button variant="primary" size="sm" onClick={() => setShowCreateBot(!showCreateBot)}>
+                  + Nuevo
+                </Button>
+              </div>
+
+              {showCreateBot && (
+                <form onSubmit={handleCreateBot} className="mb-4 p-3 bg-white/5 rounded-xl space-y-3">
+                  <Input
+                    placeholder="Nombre del bot"
+                    value={newBot.name}
+                    onChange={(e) => setNewBot({ ...newBot, name: e.target.value })}
+                    className="text-sm"
+                    required
+                  />
+                  <Input
+                    placeholder="Nombre del negocio"
+                    value={newBot.restaurant_name}
+                    onChange={(e) => setNewBot({ ...newBot, restaurant_name: e.target.value })}
+                    className="text-sm"
+                    required
+                  />
+                  <Button type="submit" variant="primary" size="sm" className="w-full" disabled={loading}>
+                    Crear
+                  </Button>
+                </form>
+              )}
+
+              <div className="space-y-2">
+                {bots.map((bot) => (
+                  <button
+                    key={bot.id}
+                    onClick={() => setSelectedBot(bot)}
+                    className={`w-full text-left p-3 rounded-xl transition ${
+                      selectedBot?.id === bot.id
+                        ? 'bg-white/10 border border-violet-500/30'
+                        : 'hover:bg-white/5'
+                    }`}
+                  >
+                    <p className="font-medium text-sm">{bot.name}</p>
+                    <p className="text-xs text-white/40">{bot.restaurant_name}</p>
+                  </button>
+                ))}
+                {bots.length === 0 && (
+                  <p className="text-sm text-white/30 text-center py-4">No tienes bots todavía</p>
+                )}
+              </div>
+            </Card>
+
+            {/* Memorias y chat */}
+            <Card className="p-4 lg:col-span-2">
+              {selectedBot ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Memorias de {selectedBot.name}</h3>
+                    <Badge variant="active">Activo</Badge>
+                  </div>
+
+                  {/* Añadir memoria */}
+                  <form onSubmit={handleAddMemory} className="flex flex-wrap gap-2">
+                    <Input
+                      placeholder="Hecho (ej: Abrimos a las 9:00)"
+                      value={newMemory.fact}
+                      onChange={(e) => setNewMemory({ ...newMemory, fact: e.target.value })}
+                      className="flex-1 min-w-[200px] text-sm"
+                      required
+                    />
+                    <Input
+                      placeholder="Palabra clave"
+                      value={newMemory.keyword}
+                      onChange={(e) => setNewMemory({ ...newMemory, keyword: e.target.value.toLowerCase() })}
+                      className="w-32 text-sm"
+                      required
+                    />
+                    <Button type="submit" variant="primary" size="sm" disabled={loading}>
+                      Añadir
+                    </Button>
+                  </form>
+
+                  {/* Lista de memorias */}
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {memories.map((m) => (
+                      <div key={m.id} className="bg-white/5 rounded-lg px-3 py-2 text-sm flex justify-between">
+                        <span className="text-white/60">{m.keyword}:</span>
+                        <span className="text-white/90">{m.fact}</span>
+                      </div>
+                    ))}
+                    {memories.length === 0 && (
+                      <p className="text-sm text-white/30 text-center py-4">
+                        Aún no hay memorias. Añade información para que el bot aprenda.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Chat rápido */}
+                  <div className="border-t border-white/5 pt-4">
+                    <p className="text-sm font-medium mb-2">Probar asistente</p>
+                    <form onSubmit={handleAskQuestion} className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Haz una pregunta..."
+                        value={chatQuestion}
+                        onChange={(e) => setChatQuestion(e.target.value)}
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                      />
+                      <Button type="submit" variant="primary" size="sm" disabled={!chatQuestion.trim() || isTyping}>
+                        {isTyping ? '...' : 'Enviar'}
+                      </Button>
+                    </form>
+                    <div className="mt-3 space-y-1 max-h-32 overflow-y-auto">
+                      {chatMessages.map((msg, i) => (
+                        <div
+                          key={i}
+                          className={`text-sm ${msg.type === 'user' ? 'text-cyan-400 text-right' : 'text-white/70'}`}
+                        >
+                          {msg.type === 'user' ? 'Tú: ' : 'Bot: '}{msg.text}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Código del widget */}
+                  <div className="border-t border-white/5 pt-4">
+                    <p className="text-xs text-white/50 mb-2">Código del widget:</p>
+                    <div className="bg-black/50 rounded-xl p-3 overflow-x-auto">
+                      <code className="text-xs text-cyan-400 break-all">
+                        {`<script src="https://nuvora-api-1hql.onrender.com/widget.js" data-bot-id="${selectedBot.id}"></script>`}
+                      </code>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const code = `<script src="https://nuvora-api-1hql.onrender.com/widget.js" data-bot-id="${selectedBot.id}"></script>`;
+                        navigator.clipboard?.writeText(code);
+                        alert('¡Código copiado al portapapeles!');
+                      }}
+                      className="mt-2 text-xs text-cyan-400 hover:underline"
+                    >
+                      📋 Copiar código
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-white/30 text-center py-8">
+                  Selecciona un bot para empezar.
+                </p>
+              )}
+            </Card>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
-}
+};
+
+export default Dashboard;

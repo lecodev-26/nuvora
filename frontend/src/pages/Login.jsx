@@ -1,78 +1,93 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { botService } from '../services/api';
+import Button from '../components/Button';
+import Card from '../components/Card';
+import Input from '../components/Input';
+import Badge from '../components/Badge';
+
+const LOGO_URL = '/logo.png';
 
 const Login = () => {
+  const navigate = useNavigate();
+  const { login, register } = useAuth();
+
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
-  const { login, register } = useAuth();
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
+
     try {
       if (isLogin) {
         await login(email, password);
+        // Redirigir al dashboard después del login
+        navigate('/dashboard');
       } else {
+        // Registro
         await register({ email, password, full_name: fullName });
-        // Después de registrar, hacer login automático
+        // Hacer login automático después del registro
         await login(email, password);
+        // Redirigir al onboarding (nuevo usuario)
+        navigate('/onboarding');
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Error de autenticación');
     }
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A14] flex items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] backdrop-blur-xl p-8">
+    <div className="min-h-screen bg-navy flex items-center justify-center p-4">
+      <Card className="w-full max-w-md p-8 bg-navy/80 border-white/10 shadow-glow">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#00C6FF] to-[#FF4ECD] bg-clip-text text-transparent">
-            Nuvora
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img src={LOGO_URL} alt="Nuvora" className="h-12 w-12 rounded-xl object-cover" />
+            <span className="text-2xl font-bold">Nuvora</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white">
+            {isLogin ? 'Inicia sesión' : 'Crea tu cuenta'}
           </h1>
-          <p className="text-white/50 text-sm mt-2">
-            {isLogin ? 'Inicia sesión en tu cuenta' : 'Crea tu cuenta gratis'}
+          <p className="text-white/50 text-sm mt-1">
+            {isLogin ? 'Accede a tu dashboard' : 'Empieza tu prueba gratuita de 30 días'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
-            <div>
-              <label className="text-xs text-white/70 block mb-1">Nombre completo</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7B5CFF] text-white"
-                placeholder="Tu nombre"
-                required={!isLogin}
-              />
-            </div>
+            <Input
+              label="Nombre completo"
+              placeholder="Tu nombre"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required={!isLogin}
+            />
           )}
-          <div>
-            <label className="text-xs text-white/70 block mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7B5CFF] text-white"
-              placeholder="tu@email.com"
-              required
-            />
-          </div>
-          <div>
-            <label className="text-xs text-white/70 block mb-1">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#7B5CFF] text-white"
-              placeholder="••••••••"
-              required
-            />
-          </div>
+
+          <Input
+            label="Email"
+            type="email"
+            placeholder="tu@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+
+          <Input
+            label="Contraseña"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
@@ -80,24 +95,31 @@ const Login = () => {
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
-            className="w-full rounded-xl py-3.5 font-semibold bg-gradient-to-r from-[#00C6FF] to-[#FF4ECD] hover:opacity-90 transition shadow-[0_0_20px_rgba(123,92,255,0.4)]"
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled={loading}
           >
-            {isLogin ? 'Iniciar sesión' : 'Registrarse'}
-          </button>
+            {loading ? 'Cargando...' : (isLogin ? 'Iniciar sesión' : 'Registrarse gratis')}
+          </Button>
         </form>
 
         <p className="text-center text-white/40 text-sm mt-6">
           {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-[#00C6FF] hover:underline ml-1"
+            className="text-cyan-400 hover:underline ml-1"
           >
-            {isLogin ? 'Regístrate' : 'Inicia sesión'}
+            {isLogin ? 'Regístrate gratis' : 'Inicia sesión'}
           </button>
         </p>
-      </div>
+
+        <div className="mt-6 pt-6 border-t border-white/5 text-center">
+          <Badge variant="trial">30 días de prueba gratis</Badge>
+        </div>
+      </Card>
     </div>
   );
 };
