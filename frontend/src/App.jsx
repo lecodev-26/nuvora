@@ -6,8 +6,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
+import Training from './pages/Training';
 
-// Componente para proteger rutas
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
@@ -26,7 +26,6 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Componente de rutas públicas (landing, login)
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
@@ -48,7 +47,6 @@ const PublicRoute = ({ children }) => {
 function AppContent() {
   return (
     <Routes>
-      {/* Ruta pública - Landing */}
       <Route
         path="/"
         element={
@@ -57,8 +55,6 @@ function AppContent() {
           </PublicRoute>
         }
       />
-
-      {/* Ruta pública - Login */}
       <Route
         path="/login"
         element={
@@ -67,8 +63,6 @@ function AppContent() {
           </PublicRoute>
         }
       />
-
-      {/* Ruta protegida - Dashboard */}
       <Route
         path="/dashboard"
         element={
@@ -77,8 +71,6 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-
-      {/* Ruta protegida - Onboarding */}
       <Route
         path="/onboarding"
         element={
@@ -87,8 +79,14 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-
-      {/* Fallback: cualquier otra ruta va a landing */}
+      <Route
+        path="/training"
+        element={
+          <ProtectedRoute>
+            <Training />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

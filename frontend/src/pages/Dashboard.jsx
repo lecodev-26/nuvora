@@ -19,7 +19,6 @@ const Dashboard = () => {
   const { user, logout } = useAuth();
   const { bots, setBots, selectedBot, setSelectedBot, loading, setLoading } = useBot();
 
-  // Estados
   const [memories, setMemories] = useState([]);
   const [newMemory, setNewMemory] = useState({ fact: '', keyword: '' });
   const [newBot, setNewBot] = useState({ name: '', restaurant_name: '', nicho_id: 'otro' });
@@ -33,13 +32,11 @@ const Dashboard = () => {
   const [showNichoConfig, setShowNichoConfig] = useState(false);
   const [nichoUpdateLoading, setNichoUpdateLoading] = useState(false);
 
-  // Cargar bots al inicio
   useEffect(() => {
     loadBots();
     loadServiceStatus();
   }, []);
 
-  // Cargar datos cuando se selecciona un bot
   useEffect(() => {
     if (selectedBot) {
       loadAnalytics(selectedBot.id);
@@ -137,7 +134,6 @@ const Dashboard = () => {
 
       if (response.ok) {
         const updatedBot = await response.json();
-        // Actualizar el bot en la lista sin recargar memorias
         setBots(bots.map(b => b.id === updatedBot.id ? updatedBot : b));
         setSelectedBot(updatedBot);
         setShowNichoConfig(false);
@@ -220,9 +216,6 @@ const Dashboard = () => {
     setPaymentLoading(false);
   };
 
-  // ============================================================
-  // RENDERIZAR ESTADO DEL SERVICIO
-  // ============================================================
   const renderServiceStatus = () => {
     if (!serviceStatus) return (
       <Card className="p-4 border-white/10">
@@ -284,14 +277,8 @@ const Dashboard = () => {
     );
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   return (
     <div className="min-h-screen bg-navy text-white flex">
-      {/* ============================================================
-          SIDEBAR
-          ============================================================ */}
       <aside className="hidden md:flex flex-col w-64 bg-navy/80 border-r border-white/5 p-6 sticky top-0 h-screen">
         <div className="flex items-center gap-3 mb-8">
           <img src={LOGO_URL} alt="Nuvora" className="h-10 w-10 rounded-xl object-cover" />
@@ -310,6 +297,12 @@ const Dashboard = () => {
           </button>
           <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
             📈 Analíticas
+          </button>
+          <button
+            onClick={() => navigate(`/training${selectedBot ? `?bot_id=${selectedBot.id}` : ''}`)}
+            className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition"
+          >
+            🎓 Training Assistant
           </button>
           <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
             🔌 Instalar widget
@@ -332,12 +325,8 @@ const Dashboard = () => {
         </div>
       </aside>
 
-      {/* ============================================================
-          CONTENIDO PRINCIPAL
-          ============================================================ */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Header móvil */}
           <div className="flex md:hidden items-center justify-between">
             <div className="flex items-center gap-3">
               <img src={LOGO_URL} alt="Nuvora" className="h-8 w-8 rounded-lg object-cover" />
@@ -348,10 +337,8 @@ const Dashboard = () => {
             </button>
           </div>
 
-          {/* Estado del servicio */}
           {renderServiceStatus()}
 
-          {/* Métricas */}
           {analytics && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card className="p-4 text-center">
@@ -373,9 +360,7 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Bots y Memorias */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Lista de bots */}
             <Card className="p-4 lg:col-span-1">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold">Tus bots</h3>
@@ -433,11 +418,9 @@ const Dashboard = () => {
               </div>
             </Card>
 
-            {/* Memorias y chat */}
             <Card className="p-4 lg:col-span-2">
               {selectedBot ? (
                 <div className="space-y-4">
-                  {/* Header con nicho y botón de configuración */}
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold">Memorias de {selectedBot.name}</h3>
@@ -451,7 +434,6 @@ const Dashboard = () => {
                     </button>
                   </div>
 
-                  {/* Configuración de nicho */}
                   {showNichoConfig && (
                     <Card className="p-4 bg-white/5 border-violet-500/20">
                       <p className="text-sm font-medium mb-3">
@@ -480,7 +462,6 @@ const Dashboard = () => {
                     </Card>
                   )}
 
-                  {/* Añadir memoria */}
                   <form onSubmit={handleAddMemory} className="flex flex-wrap gap-2">
                     <Input
                       placeholder="Hecho (ej: Abrimos a las 9:00)"
@@ -501,7 +482,6 @@ const Dashboard = () => {
                     </Button>
                   </form>
 
-                  {/* Lista de memorias */}
                   <div className="space-y-1 max-h-40 overflow-y-auto">
                     {memories.map((m) => (
                       <div key={m.id} className="bg-white/5 rounded-lg px-3 py-2 text-sm flex justify-between">
@@ -516,7 +496,6 @@ const Dashboard = () => {
                     )}
                   </div>
 
-                  {/* Chat rápido */}
                   <div className="border-t border-white/5 pt-4">
                     <p className="text-sm font-medium mb-2">Probar asistente</p>
                     <form onSubmit={handleAskQuestion} className="flex gap-2">
@@ -543,7 +522,6 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  {/* Código del widget */}
                   <div className="border-t border-white/5 pt-4">
                     <p className="text-xs text-white/50 mb-2">Código del widget:</p>
                     <div className="bg-black/50 rounded-xl p-3 overflow-x-auto">

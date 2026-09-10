@@ -195,24 +195,24 @@ export const NICHOS = {
       '¿Dónde estáis?',
       '¿Cómo puedo contactaros?',
     ]
-  }
-};
+  },
 
-desde_cero: {
-  id: 'desde_cero',
-  name: 'Desde cero',
-  icon: '✨',
-  description: 'Crea un bot personalizado sin plantilla',
-  greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
-  quickQuestions: ['Información', 'Contacto', 'Ayuda'],
-  categories: [],
-  suggestedMemories: [],
-  sampleQuestions: [
-    '¿Qué puedes hacer?',
-    '¿Cómo funciona?',
-    '¿Qué información tienes?',
-  ]
-},
+  desde_cero: {
+    id: 'desde_cero',
+    name: 'Desde cero',
+    icon: '✨',
+    description: 'Crea un bot personalizado sin plantilla',
+    greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+    quickQuestions: ['Información', 'Contacto', 'Ayuda'],
+    categories: [],
+    suggestedMemories: [],
+    sampleQuestions: [
+      '¿Qué puedes hacer?',
+      '¿Cómo funciona?',
+      '¿Qué información tienes?',
+    ]
+  },
+};
 
 
 // ============================================================
@@ -227,23 +227,8 @@ export const getNichosList = () => {
   return Object.values(NICHOS);
 };
 
-export const getNichoOptions = () => {
-  return getNichosList().map(n => ({
-    value: n.id,
-    label: `${n.icon} ${n.name}`,
-    description: n.description
-  }));
-};
-
-export const getQuickQuestions = (nichoId) => {
-  const nicho = getNicho(nichoId);
-  return nicho ? nicho.quickQuestions : NICHOS.otro.quickQuestions;
-};
-
-export const getSuggestedGreeting = (nichoId, businessName) => {
-  const nicho = getNicho(nichoId);
-  const greeting = nicho ? nicho.greeting : NICHOS.otro.greeting;
-  return greeting.replace('{business_name}', businessName || 'tu negocio');
+export const getRealNichosList = () => {
+  return getNichosList().filter(n => n.id !== 'desde_cero');
 };
 
 export const getNichoOptions = () => {
@@ -256,7 +241,13 @@ export const getNichoOptions = () => {
     }));
 };
 
-// Nueva función: obtener nichos "reales" (sin desde_cero)
-export const getRealNichosList = () => {
-  return getNichosList().filter(n => n.id !== 'desde_cero');
+export const getQuickQuestions = (nichoId) => {
+  const nicho = getNicho(nichoId);
+  return nicho ? nicho.quickQuestions : NICHOS.otro.quickQuestions;
+};
+
+export const getSuggestedGreeting = (nichoId, businessName) => {
+  const nicho = getNicho(nichoId);
+  const greeting = nicho ? nicho.greeting : NICHOS.otro.greeting;
+  return greeting.replace('{business_name}', businessName || 'tu negocio');
 };
