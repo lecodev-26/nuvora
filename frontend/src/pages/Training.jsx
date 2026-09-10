@@ -1,11 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { botService, trainingService } from '../services/api';
+import { botService, trainingService, memoryService } from '../services/api';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
+import Input from '../components/Input';
 
 const LOGO_URL = '/logo.png';
+
+// ============================================================
+// UTILIDADES
+// ============================================================
+
+const STOPWORDS_ES = new Set([
+  'que', 'cual', 'como', 'donde', 'cuando', 'quien', 'quienes',
+  'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
+  'de', 'del', 'al', 'a', 'en', 'por', 'para', 'con', 'sin',
+  'y', 'o', 'u', 'e', 'es', 'son', 'era', 'fue', 'ser',
+  'hay', 'tiene', 'tienen', 'teneis', 'tenemos', 'tengo', 'tienes',
+  'puede', 'pueden', 'podeis', 'podemos', 'puedo', 'puedes',
+  'hace', 'hacen', 'haceis', 'hacemos', 'hago', 'haces',
+  'muy', 'mas', 'menos', 'tan', 'tanto', 'mucho', 'poco',
+  'me', 'te', 'se', 'nos', 'os', 'lo', 'le', 'les',
+  'mi', 'tu', 'su', 'nuestro', 'vuestro', 'mis', 'tus', 'sus',
+  'si', 'no', 'ya', 'tambien', 'todo', 'nada', 'algo',
+]);
+
+function deriveKeyword(question) {
+  const cleaned = question
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[¿?¡!.,;:()"']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const tokens = cleaned
+    .split(' ')
+    .filter(w => w.length >= 2 && !STOPWORDS_ES.has(w))
+    .slice(0, 3);
+
+  return tokens.join(',');
+}
 
 // ============================================================
 // SUB-COMPONENTES
@@ -69,8 +105,7 @@ const RecommendationCard = ({ rec, onAction }) => {
             variant="secondary"
             size="sm"
             className="mt-3"
-            disabled
-            onClick={() => onAction && onAction(rec)}
+            onClick={() => onAction(rec)}
           >
             {actionLabels[rec.action_type] || 'Acción'} →
           </Button>
@@ -129,6 +164,164 @@ const QuestionGroupCard = ({ group }) => (
 );
 
 // ============================================================
+// MODAL — AÑADIR CONOCIMIENTO
+// ============================================================
+
+const AddKnowledgeModal = ({ open, rec, botId, onClose, onSaved }) => {
+  const [fact, setFact] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open || !rec) return;
+    setError('');
+    if (rec.action_type === 'answer_question') {
+      setFact('');
+      setKeyword(deriveKeyword(rec.action_payload.question || ''));
+    } else {
+      setFact('');
+      setKeyword(rec.action_payload.suggested_keyword || '');
+    }
+  }, [open, rec]);
+
+  if (!open || !rec) return null;
+
+  const isQuestion = rec.action_type === 'answer_question';
+  const title = isQuestion
+    ? `Responder a: "${rec.action_payload.question}"`
+    : rec.title;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!fact.trim()) {
+      setError('Escribe el contenido.');
+      return;
+    }
+    if (!keyword.trim()) {
+      setError('La palabra clave es obligatoria.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await memoryService.add({
+        bot_id: botId,
+        fact: fact.trim(),
+        keyword: keyword.trim().toLowerCase(),
+      });
+      if (onSaved) onSaved();
+      onClose();
+    } catch (e) {
+      setError(
+        e.response?.data?.detail || 'No se pudo guardar. Inténtalo de nuevo.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-navy border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h3 className="text-lg font-bold text-white pr-4">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-white/40 hover:text-white transition text-xl leading-none"
+            disabled={saving}
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isQuestion && (
+            <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+              <p className="text-xs text-white/50">Pregunta original</p>
+              <p className="text-sm text-white mt-1">
+                {rec.action_payload.question}
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm text-white/70 mb-2">
+              {isQuestion ? 'Respuesta' : 'Información'}
+            </label>
+            <textarea
+              value={fact}
+              onChange={(e) => setFact(e.target.value)}
+              placeholder={
+                isQuestion
+                  ? 'Escribe la respuesta que quieres que dé el bot...'
+                  : 'Escribe aquí la información que quieres que conozca tu bot...'
+              }
+              rows={4}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none"
+              disabled={saving}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-white/70 mb-2">
+              Palabra clave
+            </label>
+            <Input
+              type="text"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="ej: horarios"
+              disabled={saving}
+            />
+            <p className="text-[11px] text-white/30 mt-1">
+              Se usa para que el bot encuentre esta información cuando pregunten.
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="md"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              disabled={saving || !fact.trim() || !keyword.trim()}
+            >
+              {saving
+                ? 'Guardando...'
+                : isQuestion
+                ? 'Guardar respuesta'
+                : 'Guardar conocimiento'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
 // PÁGINA PRINCIPAL
 // ============================================================
 
@@ -144,6 +337,10 @@ const Training = () => {
   const [loadingReport, setLoadingReport] = useState(false);
   const [error, setError] = useState(null);
 
+  // Modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalRec, setModalRec] = useState(null);
+
   // 1. Cargar lista de bots al montar
   useEffect(() => {
     const loadBots = async () => {
@@ -153,24 +350,16 @@ const Training = () => {
         const userBots = res.data || [];
         setBots(userBots);
 
-        // Resolver bot_id según reglas
         if (urlBotId) {
-          // Caso 1: bot_id presente en query → usarlo (validar que pertenece al usuario)
           const found = userBots.find(b => b.id === parseInt(urlBotId));
           if (found) {
             setSelectedBotId(found.id);
           } else if (userBots.length > 0) {
             setSelectedBotId(userBots[0].id);
           }
-        } else if (userBots.length === 1) {
-          // Caso 2: sin bot_id, 1 bot → cargar automáticamente
-          setSelectedBotId(userBots[0].id);
-        } else if (userBots.length > 1) {
-          // Caso 3: sin bot_id, varios bots → dejamos que el usuario elija
-          // (selectedBotId queda en el primero por defecto, pero mostramos selector)
+        } else if (userBots.length >= 1) {
           setSelectedBotId(userBots[0].id);
         }
-        // Caso 4: 0 bots → selectedBotId queda null
       } catch (e) {
         setError('No se pudieron cargar tus bots.');
       } finally {
@@ -187,25 +376,11 @@ const Training = () => {
       setReport(null);
       return;
     }
-    const loadReport = async () => {
-      try {
-        setLoadingReport(true);
-        setError(null);
-        const res = await trainingService.getReport(selectedBotId, 100);
-        setReport(res.data);
-      } catch (e) {
-        setError(
-          e.response?.data?.detail ||
-            'No se pudo cargar el análisis del Training Assistant.'
-        );
-      } finally {
-        setLoadingReport(false);
-      }
-    };
-    loadReport();
+    loadReport(selectedBotId);
+    // eslint-disable-next-line
   }, [selectedBotId]);
 
-  // 3. Sincronizar URL con bot seleccionado
+  // 3. Sincronizar URL
   useEffect(() => {
     if (selectedBotId) {
       setSearchParams({ bot_id: selectedBotId }, { replace: true });
@@ -213,18 +388,40 @@ const Training = () => {
     // eslint-disable-next-line
   }, [selectedBotId]);
 
-  // Handlers
+  const loadReport = async (botId) => {
+    try {
+      setLoadingReport(true);
+      setError(null);
+      const res = await trainingService.getReport(botId, 100);
+      setReport(res.data);
+    } catch (e) {
+      setError(
+        e.response?.data?.detail ||
+          'No se pudo cargar el análisis del Training Assistant.'
+      );
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
   const handleSelectBot = (id) => setSelectedBotId(id);
+
   const handleAction = (rec) => {
-    // 14.4.8 conectará esto
-    console.log('Acción pendiente (14.4.8):', rec);
+    setModalRec(rec);
+    setModalOpen(true);
+  };
+
+  const handleSaved = () => {
+    // Refrescar el reporte con el mismo bot
+    if (selectedBotId) {
+      loadReport(selectedBotId);
+    }
   };
 
   // ============================================================
   // RENDER
   // ============================================================
 
-  // Loading inicial
   if (loading) {
     return (
       <div className="min-h-screen bg-navy flex items-center justify-center">
@@ -233,7 +430,6 @@ const Training = () => {
     );
   }
 
-  // Sin bots
   if (bots.length === 0) {
     return (
       <div className="min-h-screen bg-navy text-white p-6">
@@ -253,7 +449,6 @@ const Training = () => {
 
   return (
     <div className="min-h-screen bg-navy text-white">
-      {/* Header */}
       <header className="border-b border-white/5 bg-navy/80 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -261,13 +456,12 @@ const Training = () => {
               onClick={() => navigate('/dashboard')}
               className="text-white/50 hover:text-white transition"
             >
-              ← 
+              ←
             </button>
             <img src={LOGO_URL} alt="Nuvora" className="h-8 w-8 rounded-lg object-cover" />
             <h1 className="text-lg font-bold">Training Assistant</h1>
           </div>
 
-          {/* Selector de bot (si hay varios) */}
           {bots.length > 1 && (
             <select
               value={selectedBotId || ''}
@@ -284,26 +478,21 @@ const Training = () => {
         </div>
       </header>
 
-      {/* Contenido */}
       <main className="max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-8">
-        {/* Error */}
         {error && (
           <Card className="p-4 border-red-500/30 bg-red-500/5">
             <p className="text-red-400 text-sm">{error}</p>
           </Card>
         )}
 
-        {/* Loading reporte */}
         {loadingReport && (
           <Card className="p-8 text-center">
             <p className="text-white/50">Analizando tu bot...</p>
           </Card>
         )}
 
-        {/* Reporte */}
         {report && !loadingReport && (
           <>
-            {/* Progreso */}
             <Card className="p-6">
               <ProgressBar progress={report.progress} />
               <div className="mt-6">
@@ -315,7 +504,6 @@ const Training = () => {
               </div>
             </Card>
 
-            {/* Prioridades (recomendaciones) */}
             {report.recommendations && report.recommendations.length > 0 && (
               <section>
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -330,7 +518,6 @@ const Training = () => {
               </section>
             )}
 
-            {/* Preguntas sin responder */}
             {report.unanswered_questions && report.unanswered_questions.length > 0 && (
               <section>
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -345,7 +532,6 @@ const Training = () => {
               </section>
             )}
 
-            {/* Todos los temas (colapsable) */}
             <section>
               <details className="group">
                 <summary className="cursor-pointer text-lg font-bold flex items-center gap-2 hover:text-violet-300 transition">
@@ -366,7 +552,6 @@ const Training = () => {
               </details>
             </section>
 
-            {/* Metadata */}
             <Card className="p-4 text-xs text-white/30">
               <div className="flex flex-wrap gap-4">
                 <span>Bot: {report.bot_name}</span>
@@ -378,13 +563,24 @@ const Training = () => {
           </>
         )}
 
-        {/* Sin reporte ni error */}
         {!report && !loadingReport && !error && (
           <Card className="p-8 text-center">
             <p className="text-white/50">Selecciona un bot para ver el análisis.</p>
           </Card>
         )}
       </main>
+
+      {/* Modal */}
+      <AddKnowledgeModal
+        open={modalOpen}
+        rec={modalRec}
+        botId={selectedBotId}
+        onClose={() => {
+          setModalOpen(false);
+          setModalRec(null);
+        }}
+        onSaved={handleSaved}
+      />
     </div>
   );
 };
