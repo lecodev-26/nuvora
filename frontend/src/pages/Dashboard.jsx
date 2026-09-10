@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBot } from '../context/BotContext';
 import { botService, memoryService, askService } from '../services/api';
+import { getNicho } from '../data/nichos';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import Input from '../components/Input';
+import NichoSelector from '../components/NichoSelector';
+import NichoBadge from '../components/NichoBadge';
 
 const LOGO_URL = '/logo.png';
 const API_URL = import.meta.env.VITE_API_URL || 'https://nuvora-api-1hql.onrender.com';
@@ -19,7 +22,7 @@ const Dashboard = () => {
   // Estados
   const [memories, setMemories] = useState([]);
   const [newMemory, setNewMemory] = useState({ fact: '', keyword: '' });
-  const [newBot, setNewBot] = useState({ name: '', restaurant_name: '', owner_email: user?.email || '' });
+  const [newBot, setNewBot] = useState({ name: '', restaurant_name: '', nicho_id: 'otro' });
   const [showCreateBot, setShowCreateBot] = useState(false);
   const [analytics, setAnalytics] = useState(null);
   const [serviceStatus, setServiceStatus] = useState(null);
@@ -27,6 +30,8 @@ const Dashboard = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [showNichoConfig, setShowNichoConfig] = useState(false);
+  const [nichoUpdateLoading, setNichoUpdateLoading] = useState(false);
 
   // Cargar bots al inicio
   useEffect(() => {
@@ -34,7 +39,7 @@ const Dashboard = () => {
     loadServiceStatus();
   }, []);
 
-  // Cargar analytics cuando se selecciona un bot
+  // Cargar datos cuando se selecciona un bot
   useEffect(() => {
     if (selectedBot) {
       loadAnalytics(selectedBot.id);
@@ -69,9 +74,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('nuvora_token');
       const response = await fetch(`${API_URL}/analytics/by-bot/${botId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
@@ -86,9 +89,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('nuvora_token');
       const response = await fetch(`${API_URL}/payments/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
@@ -106,17 +107,48 @@ const Dashboard = () => {
       const response = await botService.create({
         name: newBot.name,
         restaurant_name: newBot.restaurant_name,
-        owner_email: newBot.owner_email || user?.email,
+        owner_email: user?.email,
+        nicho_id: newBot.nicho_id,
       });
       setBots([...bots, response.data]);
       setSelectedBot(response.data);
-      setNewBot({ name: '', restaurant_name: '', owner_email: user?.email || '' });
+      setNewBot({ name: '', restaurant_name: '', nicho_id: 'otro' });
       setShowCreateBot(false);
     } catch (error) {
       console.error('Error creando bot:', error);
       alert('Error al crear el bot. Inténtalo de nuevo.');
     }
     setLoading(false);
+  };
+
+  const handleUpdateNicho = async (nichoId) => {
+    if (!selectedBot) return;
+    setNichoUpdateLoading(true);
+    try {
+      const token = localStorage.getItem('nuvora_token');
+      const response = await fetch(`${API_URL}/bots/${selectedBot.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ nicho_id: nichoId })
+      });
+
+      if (response.ok) {
+        const updatedBot = await response.json();
+        // Actualizar el bot en la lista sin recargar memorias
+        setBots(bots.map(b => b.id === updatedBot.id ? updatedBot : b));
+        setSelectedBot(updatedBot);
+        setShowNichoConfig(false);
+      } else {
+        alert('Error al actualizar el nicho.');
+      }
+    } catch (error) {
+      console.error('Error actualizando nicho:', error);
+      alert('Error de conexión. Inténtalo de nuevo.');
+    }
+    setNichoUpdateLoading(false);
   };
 
   const handleAddMemory = async (e) => {
@@ -158,9 +190,6 @@ const Dashboard = () => {
     setIsTyping(false);
   };
 
-  // ============================================================
-  // MANEJAR PAGO CON STRIPE
-  // ============================================================
   const handlePayment = async () => {
     setPaymentLoading(true);
     try {
@@ -175,11 +204,10 @@ const Dashboard = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Redirigir a Stripe Checkout
         if (data.url) {
           window.location.href = data.url;
         } else {
-          alert('Error al crear la sesión de pago. Inténtalo de nuevo.');
+          alert('Error al crear la sesión de pago.');
         }
       } else {
         const error = await response.json();
@@ -226,9 +254,7 @@ const Dashboard = () => {
           <div className="text-left md:text-right">
             {daysLeft !== null && daysLeft !== undefined && (
               <p className="text-sm font-medium">
-                {daysLeft > 0
-                  ? `${daysLeft} días restantes`
-                  : 'Sin días restantes'}
+                {daysLeft > 0 ? `${daysLeft} días restantes` : 'Sin días restantes'}
               </p>
             )}
             {serviceStatus.expiration_date && (
@@ -236,13 +262,7 @@ const Dashboard = () => {
                 Expira: {new Date(serviceStatus.expiration_date).toLocaleDateString()}
               </p>
             )}
-            {serviceStatus.payment_date && (
-              <p className="text-xs text-white/30">
-                Pago: {new Date(serviceStatus.payment_date).toLocaleDateString()}
-              </p>
-            )}
 
-            {/* Botón de pago */}
             {(serviceStatus.status === 'trial' || serviceStatus.status === 'expired') && (
               <Button
                 variant="primary"
@@ -390,14 +410,20 @@ const Dashboard = () => {
                 {bots.map((bot) => (
                   <button
                     key={bot.id}
-                    onClick={() => setSelectedBot(bot)}
+                    onClick={() => {
+                      setSelectedBot(bot);
+                      setShowNichoConfig(false);
+                    }}
                     className={`w-full text-left p-3 rounded-xl transition ${
                       selectedBot?.id === bot.id
                         ? 'bg-white/10 border border-violet-500/30'
                         : 'hover:bg-white/5'
                     }`}
                   >
-                    <p className="font-medium text-sm">{bot.name}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="font-medium text-sm">{bot.name}</p>
+                      <NichoBadge nichoId={bot.nicho_id} showName={false} />
+                    </div>
                     <p className="text-xs text-white/40">{bot.restaurant_name}</p>
                   </button>
                 ))}
@@ -411,10 +437,48 @@ const Dashboard = () => {
             <Card className="p-4 lg:col-span-2">
               {selectedBot ? (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Memorias de {selectedBot.name}</h3>
-                    <Badge variant="active">Activo</Badge>
+                  {/* Header con nicho y botón de configuración */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">Memorias de {selectedBot.name}</h3>
+                      <NichoBadge nichoId={selectedBot.nicho_id} />
+                    </div>
+                    <button
+                      onClick={() => setShowNichoConfig(!showNichoConfig)}
+                      className="text-xs text-white/40 hover:text-white/70 transition"
+                    >
+                      ⚙️ Cambiar nicho
+                    </button>
                   </div>
+
+                  {/* Configuración de nicho */}
+                  {showNichoConfig && (
+                    <Card className="p-4 bg-white/5 border-violet-500/20">
+                      <p className="text-sm font-medium mb-3">
+                        Selecciona un nuevo nicho para tu negocio
+                      </p>
+                      <NichoSelector
+                        selected={selectedBot.nicho_id}
+                        onSelect={handleUpdateNicho}
+                        columns="grid-cols-2 md:grid-cols-4"
+                      />
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowNichoConfig(false)}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                      {nichoUpdateLoading && (
+                        <p className="text-xs text-violet-400 mt-2">Actualizando nicho...</p>
+                      )}
+                      <p className="text-[10px] text-white/30 mt-2">
+                        ℹ️ Cambiar de nicho no modifica tus memorias existentes.
+                      </p>
+                    </Card>
+                  )}
 
                   {/* Añadir memoria */}
                   <form onSubmit={handleAddMemory} className="flex flex-wrap gap-2">

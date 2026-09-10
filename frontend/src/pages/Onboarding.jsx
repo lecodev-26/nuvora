@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBot } from '../context/BotContext';
 import { botService, memoryService, askService } from '../services/api';
+import { getNicho, getSuggestedGreeting, getQuickQuestions } from '../data/nichos';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Badge from '../components/Badge';
+import NichoSelector from '../components/NichoSelector';
 
 const LOGO_URL = '/logo.png';
 
@@ -26,6 +28,7 @@ const Onboarding = () => {
     name: '',
     restaurant_name: '',
     owner_email: user?.email || '',
+    nicho_id: 'restaurantes', // Por defecto
   });
 
   // Paso 2: Añadir información
@@ -36,9 +39,7 @@ const Onboarding = () => {
 
   // Paso 3: Probar asistente
   const [question, setQuestion] = useState('');
-  const [chatMessages, setChatMessages] = useState([
-    { type: 'bot', text: '¡Hola! Soy tu asistente. ¿Qué quieres preguntar?' }
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
 
   // ============================================================
@@ -53,9 +54,16 @@ const Onboarding = () => {
         name: botData.name,
         restaurant_name: botData.restaurant_name,
         owner_email: botData.owner_email || user?.email,
+        nicho_id: botData.nicho_id,
       });
       setBot(response.data);
       setSelectedBot(response.data);
+
+      // Inicializar mensaje de bienvenida con el saludo del nicho
+      const nicho = getNicho(botData.nicho_id);
+      const greeting = getSuggestedGreeting(botData.nicho_id, botData.restaurant_name);
+      setChatMessages([{ type: 'bot', text: greeting }]);
+
       setStep(2);
     } catch (error) {
       console.error('Error creando bot:', error);
@@ -78,13 +86,20 @@ const Onboarding = () => {
         fact: newMemory.fact,
         keyword: newMemory.keyword,
       });
-      setMemories([...memories, response.data]);
+      setMemories([...memories, { ...response.data, fact: newMemory.fact, keyword: newMemory.keyword }]);
       setNewMemory({ fact: '', keyword: '' });
     } catch (error) {
       console.error('Error añadiendo memoria:', error);
       alert('Error al añadir la información. Inténtalo de nuevo.');
     }
     setLoading(false);
+  };
+
+  const handleUseSuggestion = (suggestion) => {
+    setNewMemory({
+      fact: suggestion.fact,
+      keyword: suggestion.keyword,
+    });
   };
 
   const handleSkipMemories = () => {
@@ -106,11 +121,11 @@ const Onboarding = () => {
 
     try {
       const response = await askService.ask(bot.id, userQuestion);
-      const answer = response.data.answer || 'No tengo esa información en mi memoria. Te recomiendo contactar directamente con el restaurante.';
+      const answer = response.data.answer || 'No tengo esa información en mi memoria.';
       setChatMessages(prev => [...prev, { type: 'bot', text: answer }]);
     } catch (error) {
       console.error('Error preguntando:', error);
-      setChatMessages(prev => [...prev, { type: 'bot', text: 'Hubo un error al procesar tu pregunta. Inténtalo de nuevo.' }]);
+      setChatMessages(prev => [...prev, { type: 'bot', text: 'Hubo un error al procesar tu pregunta.' }]);
     }
     setIsTyping(false);
   };
@@ -118,6 +133,13 @@ const Onboarding = () => {
   const handleFinishOnboarding = () => {
     navigate('/dashboard');
   };
+
+  // ============================================================
+  // DATOS DEL NICHO ACTUAL
+  // ============================================================
+
+  const currentNicho = getNicho(botData.nicho_id);
+  const quickQuestions = getQuickQuestions(botData.nicho_id);
 
   // ============================================================
   // RENDER
@@ -151,37 +173,52 @@ const Onboarding = () => {
   );
 
   const renderStep1 = () => (
-    <div className="max-w-md mx-auto animate-fade-in-up">
+    <div className="max-w-2xl mx-auto animate-fade-in-up">
       <h2 className="text-2xl md:text-3xl font-bold text-center mb-2">
         Crea tu <span className="text-gradient">negocio</span>
       </h2>
       <p className="text-white/50 text-center mb-8">
-        Configura tu asistente con los datos básicos de tu negocio.
+        Selecciona el tipo de negocio y configura los datos básicos.
       </p>
 
-      <form onSubmit={handleCreateBot} className="space-y-4">
-        <Input
-          label="Nombre del bot"
-          placeholder="Ej: Asistente La Marina"
-          value={botData.name}
-          onChange={(e) => setBotData({ ...botData, name: e.target.value })}
-          required
-        />
-        <Input
-          label="Nombre del negocio"
-          placeholder="Ej: Restaurante La Marina"
-          value={botData.restaurant_name}
-          onChange={(e) => setBotData({ ...botData, restaurant_name: e.target.value })}
-          required
-        />
-        <Input
-          label="Email del propietario"
-          type="email"
-          placeholder="tu@email.com"
-          value={botData.owner_email}
-          onChange={(e) => setBotData({ ...botData, owner_email: e.target.value })}
-          required
-        />
+      <form onSubmit={handleCreateBot} className="space-y-6">
+        {/* Selector de nicho */}
+        <div>
+          <label className="block text-sm font-medium text-white/70 mb-3">
+            Tipo de negocio
+          </label>
+          <NichoSelector
+            selected={botData.nicho_id}
+            onSelect={(id) => setBotData({ ...botData, nicho_id: id })}
+            columns="grid-cols-2 md:grid-cols-3"
+          />
+        </div>
+
+        {/* Datos del negocio */}
+        <div className="space-y-4">
+          <Input
+            label="Nombre del bot"
+            placeholder="Ej: Asistente La Marina"
+            value={botData.name}
+            onChange={(e) => setBotData({ ...botData, name: e.target.value })}
+            required
+          />
+          <Input
+            label="Nombre del negocio"
+            placeholder={`Ej: ${currentNicho.icon} Mi negocio`}
+            value={botData.restaurant_name}
+            onChange={(e) => setBotData({ ...botData, restaurant_name: e.target.value })}
+            required
+          />
+          <Input
+            label="Email del propietario"
+            type="email"
+            placeholder="tu@email.com"
+            value={botData.owner_email}
+            onChange={(e) => setBotData({ ...botData, owner_email: e.target.value })}
+            required
+          />
+        </div>
 
         <Button type="submit" variant="primary" size="lg" className="w-full" disabled={loading}>
           {loading ? 'Creando...' : 'Crear negocio →'}
@@ -191,12 +228,12 @@ const Onboarding = () => {
   );
 
   const renderStep2 = () => (
-    <div className="max-w-md mx-auto animate-fade-in-up">
+    <div className="max-w-2xl mx-auto animate-fade-in-up">
       <h2 className="text-2xl md:text-3xl font-bold text-center mb-2">
         Añade <span className="text-gradient">información</span>
       </h2>
       <p className="text-white/50 text-center mb-8">
-        Enséñale a tu asistente lo que necesita saber sobre tu negocio.
+        Enséñale a tu asistente lo que necesita saber sobre tu {currentNicho.name.toLowerCase()}.
       </p>
 
       <form onSubmit={handleAddMemory} className="space-y-4">
@@ -220,6 +257,30 @@ const Onboarding = () => {
         </Button>
       </form>
 
+      {/* Sugerencias del nicho */}
+      {currentNicho.suggestedMemories && currentNicho.suggestedMemories.length > 0 && (
+        <div className="mt-6">
+          <p className="text-sm text-white/50 mb-3">
+            💡 Sugerencias para {currentNicho.name} (haz clic para usarlas):
+          </p>
+          <div className="space-y-2">
+            {currentNicho.suggestedMemories.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleUseSuggestion(s)}
+                className="w-full text-left bg-white/5 hover:bg-white/10 border border-white/10 hover:border-violet-500/40 rounded-xl px-4 py-2.5 text-sm transition-all group"
+              >
+                <span className="text-white/40 text-xs">{s.keyword}:</span>{' '}
+                <span className="text-white/80 group-hover:text-white">{s.fact}</span>
+                <span className="float-right text-violet-400 opacity-0 group-hover:opacity-100 transition">+ Usar</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Memorias añadidas */}
       {memories.length > 0 && (
         <div className="mt-6">
           <p className="text-sm text-white/50 mb-3">Información añadida ({memories.length}):</p>
@@ -265,6 +326,7 @@ const Onboarding = () => {
               En línea
             </p>
           </div>
+          <Badge variant="cyan">{currentNicho.icon} {currentNicho.name}</Badge>
         </div>
 
         {/* Mensajes */}
@@ -292,6 +354,22 @@ const Onboarding = () => {
               </div>
             </div>
           ))}
+
+          {/* Preguntas rápidas del nicho */}
+          {chatMessages.length === 1 && (
+            <div className="flex flex-wrap gap-2 ml-9">
+              {quickQuestions.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => setQuestion(q)}
+                  className="px-3 py-1.5 text-xs rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/25 hover:bg-violet-500/25 transition"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
           {isTyping && (
             <div className="flex items-start gap-2">
               <div className="w-7 h-7 rounded-full bg-gradient-primary flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -324,8 +402,8 @@ const Onboarding = () => {
       </Card>
 
       <div className="mt-6 flex justify-end">
-        <Button variant="primary" size="lg" onClick={handleFinishOnboarding}>
-          Ir al Dashboard →
+        <Button variant="primary" size="lg" onClick={() => setStep(4)}>
+          Continuar →
         </Button>
       </div>
     </div>

@@ -4,10 +4,49 @@
   // ============================================================
   const scriptTag = document.currentScript;
   const botId = scriptTag ? parseInt(scriptTag.getAttribute('data-bot-id')) || 1 : 1;
-  const API_URL = 'https://nuvora-api-1hql.onrender.com/ask/public';
+  const API_URL = 'https://nuvora-api-1hql.onrender.com';
 
-  // Logo de Nuvora (desde GitHub)
+  // Logo de Nuvora
   const LOGO_URL = 'https://raw.githubusercontent.com/lecodev-26/nuvora/main/assets/logo.png';
+
+  // Nichos (datos maestros — deben estar sincronizados con frontend/src/data/nichos.js)
+  const NICHOS = {
+    restaurantes: {
+      icon: '🍽️',
+      greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+      quickQuestions: ['Horario', 'Menú', 'Reservas', 'Ubicación', 'Alergenos'],
+    },
+    peluquerias: {
+      icon: '💇',
+      greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+      quickQuestions: ['Horario', 'Servicios', 'Precios', 'Reservas', 'Productos'],
+    },
+    hoteles: {
+      icon: '🏨',
+      greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+      quickQuestions: ['Horario', 'Habitaciones', 'Precios', 'Servicios', 'Ubicación'],
+    },
+    gimnasios: {
+      icon: '🏋️',
+      greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+      quickQuestions: ['Horario', 'Precios', 'Clases', 'Instalaciones', 'Ubicación'],
+    },
+    clinicas: {
+      icon: '🏥',
+      greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+      quickQuestions: ['Horario', 'Servicios', 'Citas', 'Ubicación', 'Contacto'],
+    },
+    tiendas: {
+      icon: '🛍️',
+      greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+      quickQuestions: ['Horario', 'Productos', 'Precios', 'Envíos', 'Ubicación'],
+    },
+    otro: {
+      icon: '🏪',
+      greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+      quickQuestions: ['Horario', 'Servicios', 'Ubicación', 'Contacto'],
+    },
+  };
 
   // Session ID para analytics
   function generateSessionId() {
@@ -21,9 +60,6 @@
   // ============================================================
   const style = document.createElement('style');
   style.innerHTML = `
-    /* ============================================================
-       BOTÓN FLOTANTE
-       ============================================================ */
     #nuvora-bubble {
       position: fixed;
       bottom: 24px;
@@ -53,15 +89,11 @@
       object-fit: cover;
       border: 2px solid rgba(255,255,255,0.3);
     }
-
     @keyframes nuvora-pulse {
       0%, 100% { box-shadow: 0 8px 32px rgba(123, 92, 255, 0.4); }
       50% { box-shadow: 0 8px 48px rgba(123, 92, 255, 0.7); }
     }
 
-    /* ============================================================
-       VENTANA DEL CHAT
-       ============================================================ */
     #nuvora-window {
       position: fixed;
       bottom: 96px;
@@ -80,24 +112,12 @@
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       animation: nuvora-slide-up 0.3s ease;
     }
-    #nuvora-window.active {
-      display: flex;
-    }
-
+    #nuvora-window.active { display: flex; }
     @keyframes nuvora-slide-up {
-      from {
-        opacity: 0;
-        transform: translateY(20px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+      from { opacity: 0; transform: translateY(20px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    /* ============================================================
-       HEADER DEL CHAT
-       ============================================================ */
     #nuvora-header {
       background: linear-gradient(135deg, #00C6FF, #7B5CFF, #FF4ECD);
       padding: 16px 20px;
@@ -113,10 +133,7 @@
       object-fit: cover;
       border: 2px solid rgba(255,255,255,0.2);
     }
-    #nuvora-header-info {
-      flex: 1;
-      min-width: 0;
-    }
+    #nuvora-header-info { flex: 1; min-width: 0; }
     #nuvora-header-info .name {
       font-weight: 700;
       font-size: 15px;
@@ -157,9 +174,6 @@
       color: white;
     }
 
-    /* ============================================================
-       MENSAJES
-       ============================================================ */
     #nuvora-messages {
       flex: 1;
       overflow-y: auto;
@@ -169,12 +183,8 @@
       gap: 8px;
       background: #0A0A14;
     }
-    #nuvora-messages::-webkit-scrollbar {
-      width: 4px;
-    }
-    #nuvora-messages::-webkit-scrollbar-track {
-      background: rgba(255,255,255,0.03);
-    }
+    #nuvora-messages::-webkit-scrollbar { width: 4px; }
+    #nuvora-messages::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
     #nuvora-messages::-webkit-scrollbar-thumb {
       background: linear-gradient(135deg, #00C6FF, #7B5CFF);
       border-radius: 10px;
@@ -193,7 +203,6 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
     .n-msg.n-bot {
       background: rgba(255,255,255,0.06);
       color: #E8E8E8;
@@ -207,14 +216,8 @@
       align-self: flex-end;
       border-bottom-right-radius: 4px;
     }
-    .n-msg.n-bot .highlight {
-      color: #00C6FF;
-      font-weight: 500;
-    }
+    .n-msg.n-bot .highlight { color: #00C6FF; font-weight: 500; }
 
-    /* ============================================================
-       PREGUNTAS RÁPIDAS
-       ============================================================ */
     .n-quick {
       display: flex;
       flex-wrap: wrap;
@@ -240,9 +243,6 @@
       transform: scale(1.02);
     }
 
-    /* ============================================================
-       INPUT
-       ============================================================ */
     #nuvora-input-area {
       padding: 12px 16px 16px;
       border-top: 1px solid rgba(255,255,255,0.05);
@@ -263,9 +263,7 @@
       font-family: inherit;
       transition: all 0.2s;
     }
-    #nuvora-input::placeholder {
-      color: rgba(255,255,255,0.3);
-    }
+    #nuvora-input::placeholder { color: rgba(255,255,255,0.3); }
     #nuvora-input:focus {
       border-color: rgba(123, 92, 255, 0.5);
       background: rgba(255,255,255,0.08);
@@ -288,18 +286,9 @@
       transform: scale(1.04);
       box-shadow: 0 4px 20px rgba(123, 92, 255, 0.4);
     }
-    #nuvora-send:active {
-      transform: scale(0.96);
-    }
-    #nuvora-send:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none;
-    }
+    #nuvora-send:active { transform: scale(0.96); }
+    #nuvora-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-    /* ============================================================
-       TYPING INDICATOR
-       ============================================================ */
     .n-typing {
       display: flex;
       align-items: center;
@@ -327,9 +316,6 @@
       40% { transform: scale(1); opacity: 1; }
     }
 
-    /* ============================================================
-       RESPONSIVE
-       ============================================================ */
     @media (max-width: 480px) {
       #nuvora-window {
         right: 12px;
@@ -339,41 +325,15 @@
         max-height: calc(100vh - 100px);
         border-radius: 16px;
       }
-      #nuvora-bubble {
-        bottom: 16px;
-        right: 16px;
-        width: 56px;
-        height: 56px;
-      }
-      #nuvora-bubble img {
-        width: 28px;
-        height: 28px;
-      }
-      #nuvora-header {
-        padding: 14px 16px;
-      }
-      #nuvora-header img {
-        width: 32px;
-        height: 32px;
-      }
-      #nuvora-messages {
-        padding: 12px 16px;
-      }
-      .n-msg {
-        font-size: 13px;
-        padding: 8px 14px;
-      }
-      #nuvora-input-area {
-        padding: 10px 12px 12px;
-      }
-      #nuvora-input {
-        font-size: 13px;
-        padding: 8px 14px;
-      }
-      #nuvora-send {
-        font-size: 13px;
-        padding: 8px 16px;
-      }
+      #nuvora-bubble { bottom: 16px; right: 16px; width: 56px; height: 56px; }
+      #nuvora-bubble img { width: 28px; height: 28px; }
+      #nuvora-header { padding: 14px 16px; }
+      #nuvora-header img { width: 32px; height: 32px; }
+      #nuvora-messages { padding: 12px 16px; }
+      .n-msg { font-size: 13px; padding: 8px 14px; }
+      #nuvora-input-area { padding: 10px 12px 12px; }
+      #nuvora-input { font-size: 13px; padding: 8px 14px; }
+      #nuvora-send { font-size: 13px; padding: 8px 16px; }
     }
   `;
   document.head.appendChild(style);
@@ -381,33 +341,25 @@
   // ============================================================
   // HTML
   // ============================================================
-
-  // Botón flotante
   const bubble = document.createElement('div');
   bubble.id = 'nuvora-bubble';
   bubble.innerHTML = `<img src="${LOGO_URL}" alt="Nuvora">`;
   document.body.appendChild(bubble);
 
-  // Ventana del chat
   const win = document.createElement('div');
   win.id = 'nuvora-window';
   win.innerHTML = `
     <div id="nuvora-header">
       <img src="${LOGO_URL}" alt="Nuvora">
       <div id="nuvora-header-info">
-        <div class="name">Asistente Nuvora</div>
+        <div class="name" id="nuvora-business-name">Asistente Nuvora</div>
         <div class="status"><span class="dot"></span> En línea</div>
       </div>
       <button id="nuvora-close">✕</button>
     </div>
     <div id="nuvora-messages">
-      <div class="n-msg n-bot">¡Hola! 👋 Soy el asistente de <span class="highlight">tu negocio</span>. ¿En qué puedo ayudarte hoy?</div>
-      <div class="n-quick">
-        <span class="n-chip" data-q="¿Cuál es vuestro horario?">Horario</span>
-        <span class="n-chip" data-q="¿Tienen menú?">Menú</span>
-        <span class="n-chip" data-q="¿Aceptan reservas?">Reservas</span>
-        <span class="n-chip" data-q="¿Dónde están?">Ubicación</span>
-      </div>
+      <div class="n-msg n-bot" id="nuvora-greeting">¡Hola! 👋 Soy el asistente de <span class="highlight">tu negocio</span>. ¿En qué puedo ayudarte hoy?</div>
+      <div class="n-quick" id="nuvora-quick-questions"></div>
     </div>
     <div id="nuvora-input-area">
       <input id="nuvora-input" placeholder="Escribe tu pregunta..." autofocus>
@@ -423,11 +375,60 @@
   const inputEl = win.querySelector('#nuvora-input');
   const sendBtn = win.querySelector('#nuvora-send');
   const closeBtn = win.querySelector('#nuvora-close');
+  const greetingEl = win.querySelector('#nuvora-greeting');
+  const businessNameEl = win.querySelector('#nuvora-business-name');
+  const quickQuestionsEl = win.querySelector('#nuvora-quick-questions');
+
+  // ============================================================
+  // CARGAR DATOS DEL BOT (nombre y nicho)
+  // ============================================================
+  let botData = { name: 'Asistente Nuvora', nicho_id: 'otro' };
+
+  async function loadBotData() {
+    try {
+      // Intentar cargar datos del bot desde la API
+      const res = await fetch(`${API_URL}/bots/${botId}/public`);
+      if (res.ok) {
+        const data = await res.json();
+        botData = {
+          name: data.name || 'Asistente Nuvora',
+          restaurant_name: data.restaurant_name || '',
+          nicho_id: data.nicho_id || 'otro',
+        };
+      }
+    } catch (error) {
+      console.log('Usando datos por defecto del bot');
+    }
+
+    // Actualizar nombre del negocio en el header
+    if (botData.restaurant_name) {
+      businessNameEl.textContent = `Asistente de ${botData.restaurant_name}`;
+    } else {
+      businessNameEl.textContent = botData.name;
+    }
+
+    // Obtener datos del nicho
+    const nicho = NICHOS[botData.nicho_id] || NICHOS.otro;
+
+    // Actualizar saludo
+    const businessName = botData.restaurant_name || botData.name || 'tu negocio';
+    const greeting = nicho.greeting.replace('{business_name}', businessName);
+    greetingEl.innerHTML = `¡Hola! 👋 Soy el asistente de <span class="highlight">${businessName}</span>. ¿En qué puedo ayudarte hoy?`;
+
+    // Actualizar preguntas rápidas
+    quickQuestionsEl.innerHTML = nicho.quickQuestions
+      .map(q => `<span class="n-chip" data-q="${q}">${q}</span>`)
+      .join('');
+
+    // Añadir eventos a los chips
+    quickQuestionsEl.querySelectorAll('.n-chip').forEach(chip => {
+      chip.onclick = () => sendMessage(chip.dataset.q);
+    });
+  }
 
   // ============================================================
   // FUNCIONES
   // ============================================================
-
   function addMessage(text, who) {
     const d = document.createElement('div');
     d.className = `n-msg n-${who}`;
@@ -453,16 +454,13 @@
   async function sendMessage(text) {
     if (!text.trim()) return;
 
-    // Mostrar mensaje del usuario
     addMessage(text, 'user');
     inputEl.value = '';
     sendBtn.disabled = true;
-
-    // Mostrar indicador de escritura
     showTyping();
 
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetch(`${API_URL}/ask/public`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -475,7 +473,6 @@
       const data = await res.json();
       hideTyping();
 
-      // Añadir respuesta del bot
       const answer = data.answer || 'No tengo esa información en mi memoria. Te recomiendo contactar directamente con el negocio.';
       addMessage(answer, 'bot');
 
@@ -492,20 +489,12 @@
   // ============================================================
   // EVENTOS
   // ============================================================
-
-  // Alternar ventana
   bubble.onclick = () => {
     win.classList.toggle('active');
-    if (win.classList.contains('active')) {
-      inputEl.focus();
-    }
+    if (win.classList.contains('active')) inputEl.focus();
   };
 
-  closeBtn.onclick = () => {
-    win.classList.remove('active');
-  };
-
-  // Enviar mensaje
+  closeBtn.onclick = () => win.classList.remove('active');
   sendBtn.onclick = () => sendMessage(inputEl.value);
   inputEl.onkeydown = (e) => {
     if (e.key === 'Enter') {
@@ -514,12 +503,6 @@
     }
   };
 
-  // Preguntas rápidas
-  win.querySelectorAll('.n-chip').forEach(chip => {
-    chip.onclick = () => sendMessage(chip.dataset.q);
-  });
-
-  // Cerrar con Escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && win.classList.contains('active')) {
       win.classList.remove('active');
@@ -527,11 +510,9 @@
   });
 
   // ============================================================
-  // OBTENER NOMBRE DEL NEGOCIO (opcional)
+  // INICIALIZAR
   // ============================================================
-  // Si el negocio tiene nombre, se puede actualizar el header
-  // Por ahora usamos "Asistente Nuvora" por defecto
-  // En el futuro, se podría cargar desde la API con el botId
+  loadBotData();
 
   console.log(`✅ Nuvora Widget cargado — Bot ID: ${botId} | Session: ${sessionId}`);
 })();
