@@ -38,18 +38,18 @@ class Bot(Base):
 
     # --- Identidad ---
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # NUEVO: FK real
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
 
     # --- Negocio (OPCIONAL) ---
-    business_name = Column(String(200), nullable=True)   # NUEVO: reemplaza restaurant_name (nullable)
-    business_type = Column(String(50), nullable=True)    # NUEVO: tipo de negocio libre
-    nicho_id = Column(String(50), nullable=True, default="otro")  # Plantilla opcional
+    business_name = Column(String(200), nullable=True)
+    business_type = Column(String(50), nullable=True)
+    nicho_id = Column(String(50), nullable=True, default="otro")
 
-    # --- Compatibilidad (deprecados, se mantienen 1 fase) ---
-    restaurant_name = Column(String(200), nullable=True)  # DEPRECATED: usar business_name
-    owner_email = Column(String(100), nullable=True, index=True)  # DEPRECATED: usar user_id
+    # --- Compatibilidad (deprecados, se mantienen) ---
+    restaurant_name = Column(String(200), nullable=True)
+    owner_email = Column(String(100), nullable=True, index=True)
 
     # --- Propósito ---
     goal = Column(Text, nullable=True)
@@ -62,7 +62,7 @@ class Bot(Base):
     # --- Comportamiento ---
     greeting = Column(Text, nullable=True)
     fallback_message = Column(Text, nullable=True)
-    answer_mode = Column(String(20), default="strict")  # strict | flexible
+    answer_mode = Column(String(20), default="strict")
 
     # --- Control ---
     is_published = Column(Boolean, default=False)
@@ -105,11 +105,11 @@ class Memory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bot_id = Column(Integer, ForeignKey("bots.id"), nullable=False, index=True)
-    category_id = Column(Integer, ForeignKey("memory_categories.id"), nullable=True, index=True)  # NUEVO
+    category_id = Column(Integer, ForeignKey("memory_categories.id"), nullable=True, index=True)
     fact = Column(Text, nullable=False)
     keyword = Column(String(100), nullable=False)
-    source = Column(String(20), default="manual")  # NUEVO: manual | suggested | imported
-    is_confirmed = Column(Boolean, default=True)   # NUEVO: True = conocimiento confirmado
+    source = Column(String(20), default="manual")
+    is_confirmed = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
@@ -125,14 +125,108 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bot_id = Column(Integer, ForeignKey("bots.id"), nullable=False, index=True)
-    channel = Column(String(30), default="widget")  # NUEVO: widget | link | telegram | ...
+    channel = Column(String(30), default="widget")
     session_id = Column(String(100), nullable=True, index=True)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=True)
     was_answered = Column(Boolean, default=False)
-    workflow_id = Column(Integer, nullable=True)  # NUEVO: preparado para Fase 14.5
-    meta = Column(Text, nullable=True)  # NUEVO: JSON opcional (reservado para futuro)
+    workflow_id = Column(Integer, nullable=True)
+    meta = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
         return f"<Conversation {self.id}: bot={self.bot_id} answered={self.was_answered}>"
+
+
+# ============================================================
+# SOURCES — NUEVO EN 14.3.1
+# ============================================================
+
+class Source(Base):
+    """
+    Fuente de conocimiento añadida por el negocio.
+    Puede ser texto plano, URL, PDF o CSV.
+    """
+    __tablename__ = "sources"
+
+    # --- Identidad ---
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(
+        Integer,
+        ForeignKey("bots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # --- Tipo y contenido original ---
+    type = Column(String(20), nullable=False)  # text | url | pdf | csv
+    title = Column(String(200), nullable=False)
+    origin = Column(Text, nullable=True)  # URL, nombre del archivo, o NULL
+    content_raw = Column(Text, nullable=True)  # Texto bruto para re-procesar
+
+    # --- Estado del pipeline ---
+    status = Column(String(20), nullable=False, default="pending")  # pending|processing|ready|failed
+    error_message = Column(Text, nullable=True)
+    chunks_count = Column(Integer, nullable=False, default=0)
+
+    # --- Metadata ---
+    size_bytes = Column(Integer, nullable=True)
+    meta = Column(Text, nullable=True)  # JSON libre para metadatos específicos del tipo
+
+    # --- Timestamps ---
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<Source {self.id}: {self.type} '{self.title}' (bot={self.bot_id}, status={self.status})>"
+
+
+# ============================================================
+# SOURCE CHUNKS — NUEVO EN 14.3.1
+# ============================================================
+
+class SourceChunk(Base):
+    """
+    Fragmento indexable de una fuente.
+    Los chunks se eliminan en cascada cuando se elimina la fuente.
+    """
+    __tablename__ = "source_chunks"
+
+    # --- Identidad ---
+    id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(
+        Integer,
+        ForeignKey("sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    bot_id = Column(
+        Integer,
+        ForeignKey("bots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # --- Contenido ---
+    chunk_index = Column(Integer, nullable=False)  # Orden dentro de la fuente
+    content = Column(Text, nullable=False)
+    section = Column(String(200), nullable=True)  # Título detectado
+    page = Column(Integer, nullable=True)  # Página (PDF)
+    char_start = Column(Integer, nullable=True)
+    char_end = Column(Integer, nullable=True)
+    tokens_estimate = Column(Integer, nullable=True)
+
+    # --- Metadata (preparado para embeddings en Fase 15) ---
+    meta = Column(Text, nullable=True)
+
+    # --- Timestamp ---
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<SourceChunk {self.id}: source={self.source_id} idx={self.chunk_index}>"
