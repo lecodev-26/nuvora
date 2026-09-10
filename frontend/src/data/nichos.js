@@ -198,6 +198,23 @@ export const NICHOS = {
   }
 };
 
+desde_cero: {
+  id: 'desde_cero',
+  name: 'Desde cero',
+  icon: '✨',
+  description: 'Crea un bot personalizado sin plantilla',
+  greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+  quickQuestions: ['Información', 'Contacto', 'Ayuda'],
+  categories: [],
+  suggestedMemories: [],
+  sampleQuestions: [
+    '¿Qué puedes hacer?',
+    '¿Cómo funciona?',
+    '¿Qué información tienes?',
+  ]
+},
+
+
 // ============================================================
 // FUNCIONES DE UTILIDAD
 // ============================================================
@@ -227,4 +244,19 @@ export const getSuggestedGreeting = (nichoId, businessName) => {
   const nicho = getNicho(nichoId);
   const greeting = nicho ? nicho.greeting : NICHOS.otro.greeting;
   return greeting.replace('{business_name}', businessName || 'tu negocio');
+};
+
+export const getNichoOptions = () => {
+  return getNichosList()
+    .filter(n => n.id !== 'desde_cero')
+    .map(n => ({
+      value: n.id,
+      label: `${n.icon} ${n.name}`,
+      description: n.description
+    }));
+};
+
+// Nueva función: obtener nichos "reales" (sin desde_cero)
+export const getRealNichosList = () => {
+  return getNichosList().filter(n => n.id !== 'desde_cero');
 };

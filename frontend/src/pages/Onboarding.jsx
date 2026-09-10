@@ -17,33 +17,36 @@ const Onboarding = () => {
   const { user } = useAuth();
   const { setSelectedBot } = useBot();
 
-  // Estado del onboarding
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [bot, setBot] = useState(null);
   const [memories, setMemories] = useState([]);
 
-  // Paso 1: Crear negocio
+  // Paso 1: Crear negocio/bot
   const [botData, setBotData] = useState({
     name: '',
-    restaurant_name: '',
+    business_name: '',
+    business_type: '',
     owner_email: user?.email || '',
-    nicho_id: 'restaurantes', // Por defecto
+    nicho_id: 'desde_cero', // Por defecto: desde cero
+    goal: '',
+    personality: '',
+    tone: '',
   });
 
   // Paso 2: Añadir información
-  const [newMemory, setNewMemory] = useState({
-    fact: '',
-    keyword: '',
-  });
+  const [newMemory, setNewMemory] = useState({ fact: '', keyword: '' });
 
   // Paso 3: Probar asistente
   const [question, setQuestion] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
 
+  // ¿El usuario eligió "desde cero"?
+  const isFromScratch = botData.nicho_id === 'desde_cero';
+
   // ============================================================
-  // PASO 1 — CREAR NEGOCIO
+  // PASO 1 — CREAR BOT
   // ============================================================
 
   const handleCreateBot = async (e) => {
@@ -52,16 +55,18 @@ const Onboarding = () => {
     try {
       const response = await botService.create({
         name: botData.name,
-        restaurant_name: botData.restaurant_name,
+        business_name: botData.business_name || null,
+        business_type: botData.business_type || null,
         owner_email: botData.owner_email || user?.email,
         nicho_id: botData.nicho_id,
+        goal: botData.goal || null,
+        personality: botData.personality || null,
+        tone: botData.tone || null,
       });
       setBot(response.data);
       setSelectedBot(response.data);
 
-      // Inicializar mensaje de bienvenida con el saludo del nicho
-      const nicho = getNicho(botData.nicho_id);
-      const greeting = getSuggestedGreeting(botData.nicho_id, botData.restaurant_name);
+      const greeting = getSuggestedGreeting(botData.nicho_id, botData.business_name || botData.name);
       setChatMessages([{ type: 'bot', text: greeting }]);
 
       setStep(2);
@@ -96,15 +101,10 @@ const Onboarding = () => {
   };
 
   const handleUseSuggestion = (suggestion) => {
-    setNewMemory({
-      fact: suggestion.fact,
-      keyword: suggestion.keyword,
-    });
+    setNewMemory({ fact: suggestion.fact, keyword: suggestion.keyword });
   };
 
-  const handleSkipMemories = () => {
-    setStep(3);
-  };
+  const handleSkipMemories = () => setStep(3);
 
   // ============================================================
   // PASO 3 — PROBAR ASISTENTE
@@ -130,9 +130,7 @@ const Onboarding = () => {
     setIsTyping(false);
   };
 
-  const handleFinishOnboarding = () => {
-    navigate('/dashboard');
-  };
+  const handleFinishOnboarding = () => navigate('/dashboard');
 
   // ============================================================
   // DATOS DEL NICHO ACTUAL
@@ -161,11 +159,7 @@ const Onboarding = () => {
             {s < step ? '✓' : s}
           </div>
           {s < 4 && (
-            <div
-              className={`w-12 h-0.5 rounded ${
-                s < step ? 'bg-emerald-500/50' : 'bg-white/10'
-              }`}
-            />
+            <div className={`w-12 h-0.5 rounded ${s < step ? 'bg-emerald-500/50' : 'bg-white/10'}`} />
           )}
         </div>
       ))}
@@ -175,41 +169,106 @@ const Onboarding = () => {
   const renderStep1 = () => (
     <div className="max-w-2xl mx-auto animate-fade-in-up">
       <h2 className="text-2xl md:text-3xl font-bold text-center mb-2">
-        Crea tu <span className="text-gradient">negocio</span>
+        Crea tu <span className="text-gradient">bot</span>
       </h2>
       <p className="text-white/50 text-center mb-8">
-        Selecciona el tipo de negocio y configura los datos básicos.
+        Usa una plantilla o crea un bot desde cero. Tú decides.
       </p>
 
       <form onSubmit={handleCreateBot} className="space-y-6">
-        {/* Selector de nicho */}
+        {/* Selector de nicho (incluye "Desde cero") */}
         <div>
           <label className="block text-sm font-medium text-white/70 mb-3">
-            Tipo de negocio
+            ¿Cómo quieres empezar?
           </label>
           <NichoSelector
             selected={botData.nicho_id}
             onSelect={(id) => setBotData({ ...botData, nicho_id: id })}
-            columns="grid-cols-2 md:grid-cols-3"
+            columns="grid-cols-2 md:grid-cols-4"
           />
         </div>
 
-        {/* Datos del negocio */}
+        {/* Badge informativo según la elección */}
+        {isFromScratch ? (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20">
+            <span className="text-xl">✨</span>
+            <div className="text-sm text-cyan-200/80">
+              <p className="font-medium text-cyan-300">Bot desde cero</p>
+              <p className="text-xs text-cyan-200/60 mt-0.5">
+                Sin plantilla. Tú defines todo: qué hace, qué sabe y cómo se comporta.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
+            <span className="text-xl">{currentNicho.icon}</span>
+            <div className="text-sm">
+              <p className="font-medium text-violet-300">Plantilla: {currentNicho.name}</p>
+              <p className="text-xs text-violet-200/60 mt-0.5">
+                {currentNicho.description}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Datos del bot */}
         <div className="space-y-4">
           <Input
             label="Nombre del bot"
-            placeholder="Ej: Asistente La Marina"
+            placeholder="Ej: Mi asistente personal"
             value={botData.name}
             onChange={(e) => setBotData({ ...botData, name: e.target.value })}
             required
           />
-          <Input
-            label="Nombre del negocio"
-            placeholder={`Ej: ${currentNicho.icon} Mi negocio`}
-            value={botData.restaurant_name}
-            onChange={(e) => setBotData({ ...botData, restaurant_name: e.target.value })}
-            required
-          />
+
+          {!isFromScratch && (
+            <>
+              <Input
+                label="Nombre del negocio"
+                placeholder={`Ej: Mi ${currentNicho.name.toLowerCase()}`}
+                value={botData.business_name}
+                onChange={(e) => setBotData({ ...botData, business_name: e.target.value })}
+              />
+              <Input
+                label="Tipo de negocio (opcional)"
+                placeholder={`Ej: ${currentNicho.id}`}
+                value={botData.business_type}
+                onChange={(e) => setBotData({ ...botData, business_type: e.target.value })}
+              />
+            </>
+          )}
+
+          {isFromScratch && (
+            <>
+              <Input
+                label="¿Qué quieres que haga este bot? (objetivo)"
+                placeholder="Ej: Responder dudas de mi comunidad sobre videojuegos"
+                value={botData.goal}
+                onChange={(e) => setBotData({ ...botData, goal: e.target.value })}
+              />
+              <Input
+                label="Nombre del proyecto/negocio (opcional)"
+                placeholder="Ej: Mi comunidad gamer"
+                value={botData.business_name}
+                onChange={(e) => setBotData({ ...botData, business_name: e.target.value })}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Personalidad (opcional)"
+                  placeholder="Ej: cercano, profesional, divertido"
+                  value={botData.personality}
+                  onChange={(e) => setBotData({ ...botData, personality: e.target.value })}
+                />
+                <Input
+                  label="Tono (opcional)"
+                  placeholder="Ej: amigable, formal, técnico"
+                  value={botData.tone}
+                  onChange={(e) => setBotData({ ...botData, tone: e.target.value })}
+                />
+              </div>
+            </>
+          )}
+
           <Input
             label="Email del propietario"
             type="email"
@@ -221,7 +280,7 @@ const Onboarding = () => {
         </div>
 
         <Button type="submit" variant="primary" size="lg" className="w-full" disabled={loading}>
-          {loading ? 'Creando...' : 'Crear negocio →'}
+          {loading ? 'Creando...' : 'Crear bot →'}
         </Button>
       </form>
     </div>
@@ -233,7 +292,9 @@ const Onboarding = () => {
         Añade <span className="text-gradient">información</span>
       </h2>
       <p className="text-white/50 text-center mb-8">
-        Enséñale a tu asistente lo que necesita saber sobre tu {currentNicho.name.toLowerCase()}.
+        {isFromScratch
+          ? 'Enséñale a tu bot lo que necesitas que sepa.'
+          : `Enséñale a tu asistente lo que necesita saber sobre tu ${currentNicho.name.toLowerCase()}.`}
       </p>
 
       <form onSubmit={handleAddMemory} className="space-y-4">
@@ -257,8 +318,8 @@ const Onboarding = () => {
         </Button>
       </form>
 
-      {/* Sugerencias del nicho */}
-      {currentNicho.suggestedMemories && currentNicho.suggestedMemories.length > 0 && (
+      {/* Sugerencias del nicho — SOLO si NO es desde cero */}
+      {!isFromScratch && currentNicho.suggestedMemories && currentNicho.suggestedMemories.length > 0 && (
         <div className="mt-6">
           <p className="text-sm text-white/50 mb-3">
             💡 Sugerencias para {currentNicho.name} (haz clic para usarlas):
@@ -309,14 +370,13 @@ const Onboarding = () => {
   const renderStep3 = () => (
     <div className="max-w-2xl mx-auto animate-fade-in-up">
       <h2 className="text-2xl md:text-3xl font-bold text-center mb-2">
-        Prueba tu <span className="text-gradient">asistente</span>
+        Prueba tu <span className="text-gradient">bot</span>
       </h2>
       <p className="text-white/50 text-center mb-8">
-        Haz una prueba y comprueba cómo responde tu asistente.
+        Haz una prueba y comprueba cómo responde.
       </p>
 
       <Card className="p-0 overflow-hidden border-white/20">
-        {/* Header del chat */}
         <div className="bg-gradient-primary p-4 flex items-center gap-3">
           <img src={LOGO_URL} alt="Nuvora" className="h-8 w-8 rounded-lg object-cover" />
           <div className="flex-1">
@@ -326,37 +386,28 @@ const Onboarding = () => {
               En línea
             </p>
           </div>
-          <Badge variant="cyan">{currentNicho.icon} {currentNicho.name}</Badge>
+          <Badge variant={isFromScratch ? 'cyan' : 'primary'}>
+            {currentNicho.icon} {currentNicho.name}
+          </Badge>
         </div>
 
-        {/* Mensajes */}
         <div className="p-4 space-y-3 bg-navy/50 min-h-[300px] max-h-[400px] overflow-y-auto">
           {chatMessages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-2 ${
-                msg.type === 'user' ? 'justify-end' : ''
-              }`}
-            >
+            <div key={i} className={`flex items-start gap-2 ${msg.type === 'user' ? 'justify-end' : ''}`}>
               {msg.type === 'bot' && (
-                <div className="w-7 h-7 rounded-full bg-gradient-primary flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                  N
-                </div>
+                <div className="w-7 h-7 rounded-full bg-gradient-primary flex items-center justify-center text-xs font-bold text-white flex-shrink-0">N</div>
               )}
-              <div
-                className={`rounded-2xl px-4 py-2.5 text-sm max-w-[80%] ${
-                  msg.type === 'user'
-                    ? 'bg-gradient-primary text-white rounded-tr-none'
-                    : 'bg-white/10 text-white rounded-tl-none'
-                }`}
-              >
+              <div className={`rounded-2xl px-4 py-2.5 text-sm max-w-[80%] ${
+                msg.type === 'user'
+                  ? 'bg-gradient-primary text-white rounded-tr-none'
+                  : 'bg-white/10 text-white rounded-tl-none'
+              }`}>
                 {msg.text}
               </div>
             </div>
           ))}
 
-          {/* Preguntas rápidas del nicho */}
-          {chatMessages.length === 1 && (
+          {chatMessages.length === 1 && quickQuestions.length > 0 && (
             <div className="flex flex-wrap gap-2 ml-9">
               {quickQuestions.map((q, i) => (
                 <button
@@ -372,9 +423,7 @@ const Onboarding = () => {
 
           {isTyping && (
             <div className="flex items-start gap-2">
-              <div className="w-7 h-7 rounded-full bg-gradient-primary flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                N
-              </div>
+              <div className="w-7 h-7 rounded-full bg-gradient-primary flex items-center justify-center text-xs font-bold text-white flex-shrink-0">N</div>
               <div className="bg-white/10 rounded-2xl rounded-tl-none px-4 py-3">
                 <div className="flex gap-1">
                   <span className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -386,7 +435,6 @@ const Onboarding = () => {
           )}
         </div>
 
-        {/* Input */}
         <form onSubmit={handleAskQuestion} className="p-4 border-t border-white/5 flex gap-2">
           <input
             type="text"
@@ -439,7 +487,7 @@ const Onboarding = () => {
 
       <div className="mt-6 flex flex-col gap-3">
         <p className="text-sm text-white/40 text-center">
-          🎉 ¡Tu asistente está listo! Ahora puedes verlo en el dashboard.
+          🎉 ¡Tu bot está listo! Ahora puedes verlo en el dashboard.
         </p>
         <Button variant="primary" size="lg" className="w-full" onClick={handleFinishOnboarding}>
           Ir al Dashboard →
@@ -451,16 +499,13 @@ const Onboarding = () => {
   return (
     <div className="min-h-screen bg-navy text-white py-12 px-4 md:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <img src={LOGO_URL} alt="Nuvora" className="h-10 w-10 rounded-xl object-cover" />
           <span className="text-xl font-bold">Nuvora</span>
         </div>
 
-        {/* Indicador de progreso */}
         {renderStepIndicator()}
 
-        {/* Contenido del paso */}
         {step === 1 && renderStep1()}
         {step === 2 && renderStep2()}
         {step === 3 && renderStep3()}
