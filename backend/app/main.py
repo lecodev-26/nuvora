@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from app.routers import bots, memories, ask, auth, payments, analytics, categories
+from app.routers import bots, memories, ask, auth, payments, analytics, categories, sources
 
 load_dotenv()
 
@@ -12,7 +12,6 @@ app = FastAPI(
     version=os.getenv("APP_VERSION", "0.1.0")
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -25,7 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Registrar routers
 app.include_router(bots.router)
 app.include_router(memories.router)
 app.include_router(ask.router)
@@ -33,6 +31,7 @@ app.include_router(auth.router)
 app.include_router(payments.router)
 app.include_router(analytics.router)
 app.include_router(categories.router)
+app.include_router(sources.router)
 
 @app.get("/health")
 def health_check():
