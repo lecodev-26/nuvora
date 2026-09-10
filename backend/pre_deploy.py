@@ -5,10 +5,11 @@ Se ejecuta ANTES de arrancar la API en Render.
 
 Responsabilidades:
 1. Crear todas las tablas en PostgreSQL (si no existen)
-2. Ejecutar la migración de datos 14.1.1 (idempotente)
-3. NO borra datos
-4. Es idempotente (se puede ejecutar varias veces)
-5. NUNCA falla el arranque si las tablas están bien (aunque la migración tenga problemas)
+2. Ejecutar la migración 14.1.1 (Core Universal)
+3. Ejecutar la migración 14.3 (Knowledge Engine 2.0)
+4. NO borra datos
+5. Es idempotente (se puede ejecutar varias veces)
+6. NUNCA falla el arranque si las tablas base están OK
 
 Uso:
     python pre_deploy.py
@@ -25,8 +26,15 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.database.config import engine, Base
-from app.models.db_models import Bot, Memory, User, Conversation, MemoryCategory
+from app.models.db_models import (
+    Bot, Memory, User, Conversation, MemoryCategory,
+    Source, SourceChunk,
+)
 
+
+# ============================================================
+# PASO 1 — CREAR TABLAS
+# ============================================================
 
 def create_tables() -> bool:
     """Crea todas las tablas si no existen. Idempotente. Devuelve True si OK."""
@@ -44,33 +52,61 @@ def create_tables() -> bool:
         return False
 
 
-def run_migration():
-    """
-    Ejecuta la migración de datos 14.1.1. NO crítico si falla.
-    La migración se salta sola si detecta SQLite.
-    """
+# ============================================================
+# PASO 2 — MIGRACIÓN 14.1.1
+# ============================================================
+
+def run_migration_14_1_1():
+    """Ejecuta la migración 14.1.1. NO crítico si falla."""
     print("\n" + "=" * 70)
-    print("📦 PASO 2: Ejecutando migración 14.1.1...")
+    print("📦 PASO 2: Ejecutando migración 14.1.1 (Core Universal)...")
     print("=" * 70)
 
     try:
-        # Importar el módulo de migración
         from migrations import migrate_prod_14_1_1
-
-        # Ejecutar la migración
         migrate_prod_14_1_1.migrate()
-        print("✅ Migración completada")
+        print("✅ Migración 14.1.1 completada")
+        return True
 
     except SystemExit:
-        # La migración llama a sys.exit(0) en SQLite — lo ignoramos
-        print("⚠️  Migración omitida (SQLite detectado o ya migrada)")
+        print("⚠️  Migración 14.1.1 omitida (SQLite detectado o ya migrada)")
+        return True
 
     except Exception as e:
-        # Cualquier otro error: NO bloqueamos el arranque
-        print(f"⚠️  Migración falló pero no bloquea el arranque: {e}")
+        print(f"⚠️  Migración 14.1.1 falló: {e}")
         print("   (La API arrancará de todas formas)")
-        # NO re-lanzamos la excepción
+        return False
 
+
+# ============================================================
+# PASO 3 — MIGRACIÓN 14.3
+# ============================================================
+
+def run_migration_14_3():
+    """Ejecuta la migración 14.3 (Knowledge Engine 2.0). NO crítico si falla."""
+    print("\n" + "=" * 70)
+    print("📦 PASO 3: Ejecutando migración 14.3 (Knowledge Engine 2.0)...")
+    print("=" * 70)
+
+    try:
+        from migrations import migrate_prod_14_3
+        migrate_prod_14_3.migrate()
+        print("✅ Migración 14.3 completada")
+        return True
+
+    except SystemExit:
+        print("⚠️  Migración 14.3 omitida (SQLite detectado o ya migrada)")
+        return True
+
+    except Exception as e:
+        print(f"⚠️  Migración 14.3 falló: {e}")
+        print("   (La API arrancará de todas formas)")
+        return False
+
+
+# ============================================================
+# MAIN
+# ============================================================
 
 def main():
     print("\n" + "=" * 70)
@@ -82,7 +118,6 @@ def main():
     if db_url.startswith("sqlite"):
         print("⚠️  Motor detectado: SQLite (entorno local)")
     else:
-        # Ocultar credenciales en el log
         safe_url = db_url.split("@")[-1] if "@" in db_url else "postgresql"
         print(f"✅ Motor detectado: PostgreSQL ({safe_url})")
 
@@ -93,8 +128,11 @@ def main():
         print("   El arranque de la API fallará para que se pueda diagnosticar.")
         sys.exit(1)
 
-    # 2. Ejecutar migración de datos (NO crítico)
-    run_migration()
+    # 2. Migración 14.1.1 (NO crítico)
+    run_migration_14_1_1()
+
+    # 3. Migración 14.3 (NO crítico)
+    run_migration_14_3()
 
     print("\n" + "=" * 70)
     print("🎉 PRE-DEPLOY COMPLETADO")
