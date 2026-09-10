@@ -38,3 +38,5 @@ uvicorn==0.52.4
 numpy==1.26.4
 scikit-learn==1.5.1
 psycopg2-binary==2.9.9
+beautifulsoup4==4.12.3
+pypdf==5.1.0
