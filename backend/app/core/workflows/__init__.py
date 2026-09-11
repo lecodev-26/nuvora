@@ -23,6 +23,11 @@ from app.core.workflows.errors import (
     ConditionError,
     NodeExecutionError,
 )
+from app.core.workflows.validator import (
+    WorkflowValidator,
+    validate_workflow,
+    VALID_NODE_TYPES,
+)
 
 
 __all__ = [
@@ -39,4 +44,8 @@ __all__ = [
     "MaxStepsExceeded",
     "ConditionError",
     "NodeExecutionError",
+    # Validator
+    "WorkflowValidator",
+    "validate_workflow",
+    "VALID_NODE_TYPES",
 ]
