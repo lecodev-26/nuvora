@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy import (
+    Column, Integer, String, DateTime, Text, Boolean, ForeignKey, UniqueConstraint,
+)
 from sqlalchemy.sql import func
 from app.database.config import Base
 
@@ -134,30 +136,17 @@ class Conversation(Base):
 # ============================================================
 
 class Source(Base):
-    """
-    Fuente de conocimiento añadida por el negocio.
-    """
     __tablename__ = "sources"
 
     id = Column(Integer, primary_key=True, index=True)
-    bot_id = Column(
-        Integer,
-        ForeignKey("bots.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    user_id = Column(
-        Integer,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    type = Column(String(20), nullable=False)  # text | url | pdf | csv
+    type = Column(String(20), nullable=False)
     title = Column(String(200), nullable=False)
-    origin = Column(Text, nullable=True)       # URL original, nombre del archivo, o NULL
-    content_raw = Column(Text, nullable=True)  # Texto original (solo para type=text)
-    content_processed = Column(Text, nullable=True)  # Texto ya extraído/normalizado (todos los tipos)
+    origin = Column(Text, nullable=True)
+    content_raw = Column(Text, nullable=True)
+    content_processed = Column(Text, nullable=True)
 
     status = Column(String(20), nullable=False, default="pending")
     error_message = Column(Text, nullable=True)
@@ -178,24 +167,11 @@ class Source(Base):
 # ============================================================
 
 class SourceChunk(Base):
-    """
-    Fragmento indexable de una fuente.
-    """
     __tablename__ = "source_chunks"
 
     id = Column(Integer, primary_key=True, index=True)
-    source_id = Column(
-        Integer,
-        ForeignKey("sources.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    bot_id = Column(
-        Integer,
-        ForeignKey("bots.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    source_id = Column(Integer, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    bot_id = Column(Integer, ForeignKey("bots.id", ondelete="CASCADE"), nullable=False, index=True)
 
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
@@ -211,3 +187,108 @@ class SourceChunk(Base):
 
     def __repr__(self):
         return f"<SourceChunk {self.id}: source={self.source_id} idx={self.chunk_index}>"
+
+
+# ============================================================
+# WORKFLOWS (Fase 14.5)
+# ============================================================
+
+class Workflow(Base):
+    """
+    Definición estática de un workflow asociado a un bot.
+
+    Estados:
+        - draft: borrador, no ejecutable en producción
+        - active: workflow listo para ejecutarse
+        - archived: workflow retirado
+    """
+    __tablename__ = "workflows"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(
+        Integer,
+        ForeignKey("bots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(20), default="draft")  # draft | active | archived
+    version = Column(Integer, default=1)
+    trigger = Column(String(50), default="manual")  # manual | message | keyword
+    entry_node_id = Column(String(50), nullable=True)  # ID del nodo START
+    meta = Column(Text, nullable=True)  # JSON serializado para metadata
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    def __repr__(self):
+        return f"<Workflow {self.id}: '{self.name}' (bot={self.bot_id}, status={self.status})>"
+
+
+class WorkflowNode(Base):
+    """
+    Nodo individual dentro de un workflow.
+
+    El campo `config` es JSON serializado en TEXT (por compatibilidad
+    SQLite ↔ PostgreSQL, igual que el campo `meta` de otras tablas).
+
+    El campo `node_id` es un identificador lógico único DENTRO del
+    workflow (ej: "start_1", "ask_name", "check_age"). NO es el PK.
+    """
+    __tablename__ = "workflow_nodes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    node_id = Column(String(50), nullable=False, index=True)
+    type = Column(String(30), nullable=False)  # start|message|question|condition|variable|response|end
+    name = Column(String(200), nullable=True)
+    config = Column(Text, nullable=True)  # JSON serializado
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("workflow_id", "node_id", name="uq_workflow_node"),
+    )
+
+    def __repr__(self):
+        return f"<WorkflowNode {self.id}: {self.node_id} ({self.type})>"
+
+
+class WorkflowTransition(Base):
+    """
+    Transición entre dos nodos de un workflow.
+
+    - `condition`: expresión opcional. Si es None, la transición es
+      "default" y aplica para nodos lineales.
+    - `label`: etiqueta opcional ("true" / "false" / custom) útil para UI.
+    - `order`: orden de evaluación cuando hay varias transiciones desde
+      el mismo nodo.
+    """
+    __tablename__ = "workflow_transitions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    from_node_id = Column(String(50), nullable=False, index=True)
+    to_node_id = Column(String(50), nullable=False)
+    condition = Column(Text, nullable=True)
+    label = Column(String(50), nullable=True)
+    order = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<WorkflowTransition {self.from_node_id} -> {self.to_node_id}>"
