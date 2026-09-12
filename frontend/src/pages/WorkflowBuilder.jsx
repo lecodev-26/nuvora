@@ -4,19 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { useWorkflowBuilder } from '../hooks/useWorkflowBuilder';
 import { workflowService } from '../services/workflowApi';
 import Canvas from '../components/canvas/Canvas';
+import NodeInspector from '../components/inspector/NodeInspector';
 import Button from '../components/Button';
 
 /**
  * WorkflowBuilder — Página del Visual Workflow Builder.
  *
  * Ruta: /workflows/:botId y /workflows/:botId/:workflowId
- *
- * Responsabilidades:
- *  - Cargar workflow (si hay workflowId) o preparar uno nuevo
- *  - Montar el Canvas con React Flow
- *  - Conectar acciones del canvas al hook useWorkflowBuilder
- *  - Botón Guardar → PUT /workflows/{botId}/{workflowId}
- *  - Botón Volver → /dashboard
  */
 
 const WorkflowBuilder = () => {
@@ -36,14 +30,18 @@ const WorkflowBuilder = () => {
     saveError,
     validationErrors,
     selectedNodeId,
+    selectedNode,
     loadStart,
     loadSuccess,
     loadError,
     addNode,
+    updateNode,
+    deleteNode,
     moveNode,
     addTransition,
     updateMetadata,
     selectNode,
+    clearSelection,
     saveStart,
     saveSuccess,
     saveError: setSaveError,
@@ -59,7 +57,6 @@ const WorkflowBuilder = () => {
 
   useEffect(() => {
     if (!workflowId || workflowId === 'new') {
-      // Workflow nuevo
       reset();
       loadSuccess({
         workflowId: null,
@@ -78,13 +75,11 @@ const WorkflowBuilder = () => {
       return;
     }
 
-    // Cargar workflow existente
     loadStart();
     workflowService
       .get(botId, workflowId)
       .then((res) => {
         const wf = res.data;
-        // Extraer posiciones de meta.positions
         const positions = wf.meta?.positions || {};
         const nodesWithPos = (wf.nodes || []).map((n) => ({
           node_id: n.node_id,
@@ -132,15 +127,32 @@ const WorkflowBuilder = () => {
     moveNode(nodeId, position);
   }, [moveNode]);
 
-  const handleConnect = useCallback(({ source, target }) => {
+  const handleConnect = useCallback(({ source, target, sourceHandle }) => {
+    // Si viene de CONDITION, usar el handle id como label (true/false)
+    const label = sourceHandle === 'true' ? 'true'
+                : sourceHandle === 'false' ? 'false'
+                : null;
     addTransition({
       from_node_id: source,
       to_node_id: target,
       condition: null,
-      label: null,
+      label,
       order: 0,
     });
   }, [addTransition]);
+
+  // ============================================================
+  // ACCIONES DEL INSPECTOR
+  // ============================================================
+
+  const handleUpdateNode = useCallback((nodeId, patch) => {
+    updateNode(nodeId, patch);
+  }, [updateNode]);
+
+  const handleDeleteNode = useCallback((nodeId) => {
+    if (!confirm(`¿Eliminar el nodo '${nodeId}' y sus conexiones?`)) return;
+    deleteNode(nodeId);
+  }, [deleteNode]);
 
   // ============================================================
   // GUARDAR
@@ -155,18 +167,16 @@ const WorkflowBuilder = () => {
       let res;
 
       if (workflowId && workflowId !== 'new') {
-        // PUT (actualizar)
         res = await workflowService.update(botId, workflowId, payload);
       } else {
-        // POST (crear)
         res = await workflowService.create(botId, payload);
-        // Redirigir a la URL del nuevo workflow
         const newId = res.data.id;
         navigate(`/workflows/${botId}/${newId}`, { replace: true });
       }
 
       saveSuccess();
       setSaveMessage({ type: 'success', text: 'Guardado correctamente' });
+      setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
       const detail = err.response?.data?.detail;
       const msg = Array.isArray(detail)
@@ -175,6 +185,31 @@ const WorkflowBuilder = () => {
       setSaveError(msg);
       setSaveMessage({ type: 'error', text: msg });
     }
+  };
+
+  // ============================================================
+  // AÑADIR NODO
+  // ============================================================
+
+  const handleAddNode = () => {
+    const id = prompt('ID del nodo (ej: s1, m1, e1):');
+    if (!id) return;
+    const type = prompt('Tipo (start|message|question|condition|variable|response|end):');
+    if (!type) return;
+
+    // Posición: centrada con offset aleatorio
+    const position = {
+      x: 200 + Math.random() * 300,
+      y: 100 + Math.random() * 300,
+    };
+
+    addNode({
+      node_id: id,
+      type,
+      name: null,
+      config: null,
+      position,
+    });
   };
 
   // ============================================================
@@ -268,7 +303,7 @@ const WorkflowBuilder = () => {
         </div>
       )}
 
-      {/* Área principal: Canvas + Panel lateral */}
+      {/* Área principal: Canvas + Inspector */}
       <div className="flex-1 flex overflow-hidden">
         {/* Canvas */}
         <div className="flex-1 relative">
@@ -281,76 +316,29 @@ const WorkflowBuilder = () => {
             onConnect={handleConnect}
           />
 
-          {/* Botones flotantes */}
+          {/* Botón flotante: añadir nodo */}
           <div className="absolute bottom-6 left-6 flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                const id = prompt('ID del nodo (ej: m1, s1, e1):');
-                if (!id) return;
-                const type = prompt('Tipo (start|message|question|condition|variable|response|end):');
-                if (!type) return;
-                addNode({
-                  node_id: id,
-                  type,
-                  name: null,
-                  config: null,
-                  position: { x: Math.random() * 400, y: Math.random() * 400 },
-                });
-              }}
-            >
+            <Button variant="secondary" size="sm" onClick={handleAddNode}>
               + Añadir nodo
             </Button>
           </div>
         </div>
 
-        {/* Panel lateral derecho (placeholder, en 14.6.6 será Node Inspector) */}
+        {/* Inspector */}
         <div className="w-80 border-l border-white/10 bg-white/5 backdrop-blur-sm p-4 overflow-y-auto">
-          <h3 className="text-white font-semibold mb-3">Propiedades</h3>
-          {selectedNodeId ? (
-            <div className="text-white/70 text-sm space-y-2">
-              <div>
-                <span className="text-white/40">node_id:</span>{' '}
-                <span className="font-mono">{selectedNodeId}</span>
-              </div>
-              {(() => {
-                const n = nodes.find((x) => x.node_id === selectedNodeId);
-                if (!n) return null;
-                return (
-                  <>
-                    <div>
-                      <span className="text-white/40">type:</span>{' '}
-                      <span className="font-mono">{n.type}</span>
-                    </div>
-                    <div>
-                      <span className="text-white/40">name:</span>{' '}
-                      <span>{n.name || '—'}</span>
-                    </div>
-                    {n.config && (
-                      <div>
-                        <span className="text-white/40">config:</span>
-                        <pre className="mt-1 text-xs bg-black/30 rounded p-2 overflow-x-auto">
-                          {JSON.stringify(n.config, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          ) : (
-            <div className="text-white/40 text-sm">
-              Selecciona un nodo para ver sus propiedades.
-            </div>
-          )}
+          <NodeInspector
+            node={selectedNode}
+            onUpdate={handleUpdateNode}
+            onDelete={handleDeleteNode}
+          />
 
-          {/* Debug: estado */}
+          {/* Debug (temporal, quitar en 14.6.13) */}
           <div className="mt-6 pt-4 border-t border-white/10">
             <h4 className="text-white/60 text-xs uppercase mb-2">Debug</h4>
             <div className="text-xs text-white/40 space-y-1">
               <div>nodes: {nodes.length}</div>
               <div>transitions: {transitions.length}</div>
+              <div>selected: {selectedNodeId || '—'}</div>
               <div>dirty: {String(dirty)}</div>
               <div>saving: {String(saving)}</div>
             </div>
