@@ -14,14 +14,13 @@ import { NODE_TYPES } from './nodes';
  * Canvas — Wrapper sobre ReactFlow para el Workflow Builder.
  *
  * Props:
- *   - nodes: array de nodos del builder ({node_id, type, name, config, position})
- *   - transitions: array de transiciones ({from_node_id, to_node_id, label, condition})
+ *   - nodes: array de nodos del builder
+ *   - transitions: array de transiciones
  *   - onNodeClick: (nodeId) => void
  *   - onNodeMove: (nodeId, position) => void
- *   - onConnect: ({ source, target, sourceHandle, targetHandle }) => void
- *   - selectedNodeId: string | null
- *
- * NO conoce la API. Solo dibuja y notifica eventos.
+ *   - onConnect: ({ source, target, sourceHandle }) => void
+ *   - onEdgeClick: (transitionId) => void
+ *   - selectedNodeId, selectedTransitionId
  */
 
 // ============================================================
@@ -31,7 +30,7 @@ import { NODE_TYPES } from './nodes';
 function builderToFlowNodes(builderNodes, selectedNodeId) {
   return builderNodes.map((n) => ({
     id: n.node_id,
-    type: n.type,                 // ← coincide con NODE_TYPES
+    type: n.type,
     position: n.position || { x: 0, y: 0 },
     data: {
       node_id: n.node_id,
@@ -44,15 +43,22 @@ function builderToFlowNodes(builderNodes, selectedNodeId) {
   }));
 }
 
-function builderToFlowEdges(builderTransitions) {
+function makeEdgeId(t, idx) {
+  return `${t.from_node_id}→${t.to_node_id}→${t.label || ''}→${idx}`;
+}
+
+function builderToFlowEdges(builderTransitions, selectedTransitionId) {
   return builderTransitions.map((t, idx) => {
-    const isConditional = t.condition || t.label === 'true' || t.label === 'false';
+    const edgeId = makeEdgeId(t, idx);
+
+    // Determinar color por tipo
     const isTrue = t.label === 'true';
     const isFalse = t.label === 'false';
+    const isConditional = t.condition;
 
-    // Color según tipo
     let stroke = 'rgba(255,255,255,0.4)';
     let markerColor = 'rgba(255,255,255,0.6)';
+    let strokeWidth = 2;
 
     if (isTrue) {
       stroke = 'rgba(16,185,129,0.7)';
@@ -65,14 +71,22 @@ function builderToFlowEdges(builderTransitions) {
       markerColor = 'rgba(245,158,11,0.9)';
     }
 
+    const isSelected = selectedTransitionId === edgeId;
+
+    if (isSelected) {
+      strokeWidth = 3;
+      stroke = stroke.replace(/[\d.]+\)$/, '1)');
+    }
+
     return {
-      id: `${t.from_node_id}→${t.to_node_id}→${idx}`,
+      id: edgeId,
       source: t.from_node_id,
       target: t.to_node_id,
       sourceHandle: t.label === 'true' ? 'true' : t.label === 'false' ? 'false' : undefined,
       label: t.condition || undefined,
       animated: false,
-      style: { stroke, strokeWidth: 2 },
+      selected: isSelected,
+      style: { stroke, strokeWidth },
       markerEnd: { type: MarkerType.ArrowClosed, color: markerColor },
       labelStyle: { fill: 'rgba(255,255,255,0.7)', fontSize: 10 },
       labelBgStyle: { fill: 'rgba(10,10,20,0.8)' },
@@ -92,17 +106,18 @@ const Canvas = ({
   onNodeClick,
   onNodeMove,
   onConnect,
+  onEdgeClick,
   selectedNodeId,
+  selectedTransitionId,
 }) => {
-  // Convertir a formato React Flow
   const flowNodes = useMemo(
     () => builderToFlowNodes(builderNodes, selectedNodeId),
     [builderNodes, selectedNodeId]
   );
 
   const flowEdges = useMemo(
-    () => builderToFlowEdges(builderTransitions),
-    [builderTransitions]
+    () => builderToFlowEdges(builderTransitions, selectedTransitionId),
+    [builderTransitions, selectedTransitionId]
   );
 
   // Handlers
@@ -111,6 +126,13 @@ const Canvas = ({
       if (onNodeClick) onNodeClick(node.id);
     },
     [onNodeClick]
+  );
+
+  const handleEdgeClick = useCallback(
+    (event, edge) => {
+      if (onEdgeClick) onEdgeClick(edge.id);
+    },
+    [onEdgeClick]
   );
 
   const handleNodeDragStop = useCallback(
@@ -134,6 +156,37 @@ const Canvas = ({
     [onConnect]
   );
 
+  /**
+   * Validación UX de conexiones:
+   *  - No permitir conectar hacia un START
+   *  - No permitir conectar desde un END
+   *  - No permitir auto-conexión
+   *  - No permitir duplicados exactos
+   */
+  const isValidConnection = useCallback(
+    (connection) => {
+      const sourceNode = builderNodes.find((n) => n.node_id === connection.source);
+      const targetNode = builderNodes.find((n) => n.node_id === connection.target);
+
+      if (!sourceNode || !targetNode) return false;
+      if (sourceNode.node_id === targetNode.node_id) return false;
+      if (sourceNode.type === 'end') return false;
+      if (targetNode.type === 'start') return false;
+
+      // Duplicados exactos
+      const exists = builderTransitions.some(
+        (t) =>
+          t.from_node_id === connection.source &&
+          t.to_node_id === connection.target &&
+          (t.label || null) === (connection.sourceHandle || null)
+      );
+      if (exists) return false;
+
+      return true;
+    },
+    [builderNodes, builderTransitions]
+  );
+
   return (
     <div className="w-full h-full bg-navy">
       <ReactFlow
@@ -143,12 +196,17 @@ const Canvas = ({
         onNodeClick={handleNodeClick}
         onNodeDragStop={handleNodeDragStop}
         onConnect={handleConnect}
+        onEdgeClick={handleEdgeClick}
+        isValidConnection={isValidConnection}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ animated: false }}
+        edgesFocusable
+        edgesReconnectable={false}
+        elementsSelectable
       >
         <Background color="rgba(255,255,255,0.08)" gap={24} size={1} />
         <Controls

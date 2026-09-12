@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWorkflowBuilder } from '../hooks/useWorkflowBuilder';
 import { workflowService } from '../services/workflowApi';
 import Canvas from '../components/canvas/Canvas';
 import NodeInspector from '../components/inspector/NodeInspector';
+import TransitionInspector from '../components/inspector/TransitionInspector';
 import Button from '../components/Button';
 
 /**
@@ -31,6 +32,7 @@ const WorkflowBuilder = () => {
     validationErrors,
     selectedNodeId,
     selectedNode,
+    selectedTransitionId,
     loadStart,
     loadSuccess,
     loadError,
@@ -39,8 +41,11 @@ const WorkflowBuilder = () => {
     deleteNode,
     moveNode,
     addTransition,
+    updateTransition,
+    deleteTransition,
     updateMetadata,
     selectNode,
+    selectTransition,
     clearSelection,
     saveStart,
     saveSuccess,
@@ -116,6 +121,29 @@ const WorkflowBuilder = () => {
   }, [botId, workflowId, loadStart, loadSuccess, loadError, reset]);
 
   // ============================================================
+  // TRANSICIÓN SELECCIONADA
+  // ============================================================
+
+  /**
+   * El id del edge viene en formato: `from→to→label→idx`
+   * Lo parseamos para encontrar la transición correspondiente.
+   */
+  const selectedTransition = useMemo(() => {
+    if (!selectedTransitionId) return null;
+    const parts = selectedTransitionId.split('→');
+    if (parts.length < 4) return null;
+    const [from_node_id, to_node_id, label] = parts;
+    const labelOrNull = label || null;
+
+    return transitions.find(
+      (t) =>
+        t.from_node_id === from_node_id &&
+        t.to_node_id === to_node_id &&
+        (t.label || null) === labelOrNull
+    ) || null;
+  }, [selectedTransitionId, transitions]);
+
+  // ============================================================
   // ACCIONES DEL CANVAS
   // ============================================================
 
@@ -127,8 +155,11 @@ const WorkflowBuilder = () => {
     moveNode(nodeId, position);
   }, [moveNode]);
 
+  const handleEdgeClick = useCallback((edgeId) => {
+    selectTransition(edgeId);
+  }, [selectTransition]);
+
   const handleConnect = useCallback(({ source, target, sourceHandle }) => {
-    // Si viene de CONDITION, usar el handle id como label (true/false)
     const label = sourceHandle === 'true' ? 'true'
                 : sourceHandle === 'false' ? 'false'
                 : null;
@@ -142,7 +173,7 @@ const WorkflowBuilder = () => {
   }, [addTransition]);
 
   // ============================================================
-  // ACCIONES DEL INSPECTOR
+  // ACCIONES DEL INSPECTOR (NODE)
   // ============================================================
 
   const handleUpdateNode = useCallback((nodeId, patch) => {
@@ -153,6 +184,29 @@ const WorkflowBuilder = () => {
     if (!confirm(`¿Eliminar el nodo '${nodeId}' y sus conexiones?`)) return;
     deleteNode(nodeId);
   }, [deleteNode]);
+
+  // ============================================================
+  // ACCIONES DEL INSPECTOR (TRANSITION)
+  // ============================================================
+
+  const handleUpdateTransition = useCallback((patch) => {
+    if (!selectedTransition) return;
+    updateTransition(
+      selectedTransition.from_node_id,
+      selectedTransition.to_node_id,
+      patch
+    );
+  }, [selectedTransition, updateTransition]);
+
+  const handleDeleteTransition = useCallback(() => {
+    if (!selectedTransition) return;
+    if (!confirm('¿Eliminar esta transición?')) return;
+    deleteTransition(
+      selectedTransition.from_node_id,
+      selectedTransition.to_node_id
+    );
+    clearSelection();
+  }, [selectedTransition, deleteTransition, clearSelection]);
 
   // ============================================================
   // GUARDAR
@@ -197,19 +251,12 @@ const WorkflowBuilder = () => {
     const type = prompt('Tipo (start|message|question|condition|variable|response|end):');
     if (!type) return;
 
-    // Posición: centrada con offset aleatorio
     const position = {
       x: 200 + Math.random() * 300,
       y: 100 + Math.random() * 300,
     };
 
-    addNode({
-      node_id: id,
-      type,
-      name: null,
-      config: null,
-      position,
-    });
+    addNode({ node_id: id, type, name: null, config: null, position });
   };
 
   // ============================================================
@@ -311,9 +358,11 @@ const WorkflowBuilder = () => {
             nodes={nodes}
             transitions={transitions}
             selectedNodeId={selectedNodeId}
+            selectedTransitionId={selectedTransitionId}
             onNodeClick={handleNodeClick}
             onNodeMove={handleNodeMove}
             onConnect={handleConnect}
+            onEdgeClick={handleEdgeClick}
           />
 
           {/* Botón flotante: añadir nodo */}
@@ -326,21 +375,29 @@ const WorkflowBuilder = () => {
 
         {/* Inspector */}
         <div className="w-80 border-l border-white/10 bg-white/5 backdrop-blur-sm p-4 overflow-y-auto">
-          <NodeInspector
-            node={selectedNode}
-            onUpdate={handleUpdateNode}
-            onDelete={handleDeleteNode}
-          />
+          {selectedTransition ? (
+            <TransitionInspector
+              transition={selectedTransition}
+              onUpdate={handleUpdateTransition}
+              onDelete={handleDeleteTransition}
+            />
+          ) : (
+            <NodeInspector
+              node={selectedNode}
+              onUpdate={handleUpdateNode}
+              onDelete={handleDeleteNode}
+            />
+          )}
 
-          {/* Debug (temporal, quitar en 14.6.13) */}
+          {/* Debug */}
           <div className="mt-6 pt-4 border-t border-white/10">
             <h4 className="text-white/60 text-xs uppercase mb-2">Debug</h4>
             <div className="text-xs text-white/40 space-y-1">
               <div>nodes: {nodes.length}</div>
               <div>transitions: {transitions.length}</div>
-              <div>selected: {selectedNodeId || '—'}</div>
+              <div>node sel: {selectedNodeId || '—'}</div>
+              <div>edge sel: {selectedTransitionId ? '●' : '—'}</div>
               <div>dirty: {String(dirty)}</div>
-              <div>saving: {String(saving)}</div>
             </div>
           </div>
         </div>
