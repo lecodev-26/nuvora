@@ -7,15 +7,17 @@ Estos schemas NO contienen lógica de ejecución.
 Solo definen la forma de los datos.
 
 REGLA:
-    - El campo `config` de los nodos es un dict JSON (Pydantic lo valida,
-      SQLAlchemy lo serializa a TEXT en BD).
-    - Los schemas de Response exponen `config` como dict (parseado desde TEXT).
+    - El campo `config` de los nodos es un dict JSON en la API,
+      pero en la BD se guarda como TEXT (string JSON).
+    - Los schemas de Response parsean automáticamente el string JSON
+      a dict mediante field_validator.
     - Compatibilidad total con el patrón de Nuvora.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, Any, Literal
+import json
 
 
 # ============================================================
@@ -33,6 +35,32 @@ NodeType = Literal[
     "response",
     "end",
 ]
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def _parse_json_string(value: Any) -> Any:
+    """
+    Si `value` es un string JSON, lo parsea a dict.
+    Si es None, devuelve None.
+    Si ya es dict, lo devuelve tal cual.
+    Si es string vacío, devuelve None.
+    Si falla el parseo, devuelve None (no rompe).
+    """
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        if not value.strip():
+            return None
+        try:
+            return json.loads(value)
+        except (ValueError, TypeError):
+            return None
+    return value
 
 
 # ============================================================
@@ -63,6 +91,12 @@ class WorkflowNodeResponse(BaseModel):
     name: Optional[str] = None
     config: Optional[dict[str, Any]] = None
     created_at: datetime
+
+    @field_validator("config", mode="before")
+    @classmethod
+    def _parse_config(cls, v):
+        """Convierte string JSON → dict automáticamente."""
+        return _parse_json_string(v)
 
     class Config:
         from_attributes = True
@@ -146,6 +180,12 @@ class WorkflowResponse(BaseModel):
     meta: Optional[dict[str, Any]] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+    @field_validator("meta", mode="before")
+    @classmethod
+    def _parse_meta(cls, v):
+        """Convierte string JSON → dict automáticamente."""
+        return _parse_json_string(v)
 
     class Config:
         from_attributes = True

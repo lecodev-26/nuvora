@@ -1,6 +1,7 @@
 from sqlalchemy import (
     Column, Integer, String, DateTime, Text, Boolean, ForeignKey, UniqueConstraint,
 )
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database.config import Base
 
@@ -226,6 +227,20 @@ class Workflow(Base):
         onupdate=func.now(),
     )
 
+    # Relaciones ORM
+    nodes = relationship(
+        "WorkflowNode",
+        back_populates="workflow",
+        cascade="all, delete-orphan",
+        order_by="WorkflowNode.id",
+    )
+    transitions = relationship(
+        "WorkflowTransition",
+        back_populates="workflow",
+        cascade="all, delete-orphan",
+        order_by="WorkflowTransition.order",
+    )
+
     def __repr__(self):
         return f"<Workflow {self.id}: '{self.name}' (bot={self.bot_id}, status={self.status})>"
 
@@ -255,6 +270,9 @@ class WorkflowNode(Base):
     config = Column(Text, nullable=True)  # JSON serializado
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relación inversa
+    workflow = relationship("Workflow", back_populates="nodes")
 
     __table_args__ = (
         UniqueConstraint("workflow_id", "node_id", name="uq_workflow_node"),
@@ -289,6 +307,9 @@ class WorkflowTransition(Base):
     label = Column(String(50), nullable=True)
     order = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relación inversa
+    workflow = relationship("Workflow", back_populates="transitions")
 
     def __repr__(self):
         return f"<WorkflowTransition {self.from_node_id} -> {self.to_node_id}>"

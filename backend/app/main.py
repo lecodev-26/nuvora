@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from app.routers import (
     bots, memories, ask, auth, payments, analytics, categories, sources, training,
+    workflows,
 )
 
 load_dotenv()
@@ -34,7 +35,8 @@ app.include_router(payments.router)
 app.include_router(analytics.router)
 app.include_router(categories.router)
 app.include_router(sources.router)
-app.include_router(training.router)  # ← NUEVO
+app.include_router(training.router)
+app.include_router(workflows.router)  # ← NUEVO 14.5.7
 
 @app.get("/health")
 def health_check():
