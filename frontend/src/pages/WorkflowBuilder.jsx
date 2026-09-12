@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWorkflowBuilder, generateNodeId } from '../hooks/useWorkflowBuilder';
 import { workflowService } from '../services/workflowApi';
+import { validateWorkflow, getErrorNodeIds } from '../utils/workflowValidation';
 import Canvas from '../components/canvas/Canvas';
 import NodeInspector from '../components/inspector/NodeInspector';
 import TransitionInspector from '../components/inspector/TransitionInspector';
@@ -56,6 +57,23 @@ const WorkflowBuilder = () => {
   } = builder;
 
   const [saveMessage, setSaveMessage] = useState(null);
+  const [showErrorPanel, setShowErrorPanel] = useState(true);
+
+  // ============================================================
+  // VALIDACIÓN LOCAL (UX)
+  // ============================================================
+
+  const validation = useMemo(
+    () => validateWorkflow({ nodes, transitions, workflowMetadata }),
+    [nodes, transitions, workflowMetadata]
+  );
+
+  const errorNodeIds = useMemo(
+    () => getErrorNodeIds(validation),
+    [validation]
+  );
+
+  const hasBlockingErrors = validation.errors.length > 0;
 
   // ============================================================
   // CARGA INICIAL
@@ -175,18 +193,11 @@ const WorkflowBuilder = () => {
 
   const handleAddNodeByType = useCallback((type) => {
     const nodeId = generateNodeId(type, nodes);
-    // Posición: si es el primero, centro; si no, offset incremental
     const position = nodes.length === 0
       ? { x: 300, y: 150 }
       : { x: 300 + Math.random() * 200, y: 150 + Math.random() * 200 };
 
-    addNode({
-      node_id: nodeId,
-      type,
-      name: null,
-      config: null,
-      position,
-    });
+    addNode({ node_id: nodeId, type, name: null, config: null, position });
   }, [nodes, addNode]);
 
   const handleUpdateNode = useCallback((nodeId, patch) => {
@@ -203,7 +214,6 @@ const WorkflowBuilder = () => {
     if (!original) return;
 
     const newId = generateNodeId(original.type, nodes);
-    // Offset para que no quede encima
     const newPosition = {
       x: (original.position?.x || 0) + 80,
       y: (original.position?.y || 0) + 80,
@@ -247,7 +257,6 @@ const WorkflowBuilder = () => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignorar si el foco está en un input/textarea
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
@@ -283,6 +292,17 @@ const WorkflowBuilder = () => {
 
   const handleSave = async () => {
     setSaveMessage(null);
+
+    // Bloquear si hay errores críticos de validación local
+    if (hasBlockingErrors) {
+      setSaveMessage({
+        type: 'error',
+        text: `Corrige los ${validation.errors.length} errores antes de guardar`,
+      });
+      setShowErrorPanel(true);
+      return;
+    }
+
     saveStart();
 
     try {
@@ -307,6 +327,7 @@ const WorkflowBuilder = () => {
         : detail || err.message || 'Error guardando';
       setSaveError(msg);
       setSaveMessage({ type: 'error', text: msg });
+      setShowErrorPanel(true);
     }
   };
 
@@ -366,6 +387,12 @@ const WorkflowBuilder = () => {
               ● Sin guardar
             </span>
           )}
+
+          {hasBlockingErrors && (
+            <span className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded">
+              ⚠️ {validation.errors.length} error{validation.errors.length > 1 ? 'es' : ''}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -389,11 +416,62 @@ const WorkflowBuilder = () => {
         </div>
       </div>
 
-      {/* Aviso errores */}
-      {(saveError || validationErrors.length > 0) && (
+      {/* Panel de validación (colapsable) */}
+      {hasBlockingErrors && showErrorPanel && (
+        <div className="bg-red-500/10 border-b border-red-500/30 px-6 py-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="text-red-400 font-semibold text-sm mb-2">
+                ⚠️ Errores de validación ({validation.errors.length})
+              </div>
+              <ul className="text-red-300 text-xs space-y-1 max-h-32 overflow-y-auto">
+                {validation.errors.map((e, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span>•</span>
+                    <span>{e.message}</span>
+                  </li>
+                ))}
+              </ul>
+              {validation.warnings.length > 0 && (
+                <div className="mt-2">
+                  <div className="text-amber-400 font-semibold text-xs mb-1">
+                    Avisos ({validation.warnings.length})
+                  </div>
+                  <ul className="text-amber-300/70 text-xs space-y-0.5 max-h-20 overflow-y-auto">
+                    {validation.warnings.slice(0, 5).map((w, i) => (
+                      <li key={i}>• {w.message}</li>
+                    ))}
+                    {validation.warnings.length > 5 && (
+                      <li className="italic">...y {validation.warnings.length - 5} más</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowErrorPanel(false)}
+              className="text-red-400 hover:text-red-300 text-xs shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Aviso errores del backend */}
+      {saveError && (
         <div className="bg-red-500/10 border-b border-red-500/30 px-6 py-2">
           <div className="text-red-400 text-sm">
-            {saveError && <div>⚠️ {saveError}</div>}
+            <span className="font-semibold">Backend:</span> {saveError}
+          </div>
+        </div>
+      )}
+
+      {/* Validación de nodos del hook (duplicados) */}
+      {validationErrors.length > 0 && (
+        <div className="bg-red-500/10 border-b border-red-500/30 px-6 py-2">
+          <div className="text-red-400 text-sm">
             {validationErrors.map((e, i) => (
               <div key={i}>⚠️ {e.message}</div>
             ))}
@@ -410,16 +488,15 @@ const WorkflowBuilder = () => {
             transitions={transitions}
             selectedNodeId={selectedNodeId}
             selectedTransitionId={selectedTransitionId}
+            errorNodeIds={errorNodeIds}
             onNodeClick={handleNodeClick}
             onNodeMove={handleNodeMove}
             onConnect={handleConnect}
             onEdgeClick={handleEdgeClick}
           />
 
-          {/* Paleta de nodos */}
           <NodePalette onAdd={handleAddNodeByType} />
 
-          {/* Ayuda teclado */}
           <div className="absolute bottom-6 right-6 text-white/30 text-xs space-y-1 text-right pointer-events-none">
             <div>Delete: borrar selección</div>
             <div>Esc: deseleccionar</div>
@@ -449,8 +526,8 @@ const WorkflowBuilder = () => {
             <div className="text-xs text-white/40 space-y-1">
               <div>nodes: {nodes.length}</div>
               <div>transitions: {transitions.length}</div>
-              <div>node sel: {selectedNodeId || '—'}</div>
-              <div>edge sel: {selectedTransitionId ? '●' : '—'}</div>
+              <div>errors: {validation.errors.length}</div>
+              <div>warnings: {validation.warnings.length}</div>
               <div>dirty: {String(dirty)}</div>
             </div>
           </div>

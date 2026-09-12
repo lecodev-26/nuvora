@@ -89,6 +89,7 @@ const NodeShell = ({
   type,
   children,
   selected = false,
+  hasError = false,
   hasInput = true,
   hasOutput = true,
   inputId,
@@ -102,7 +103,8 @@ const NodeShell = ({
       className={`
         min-w-[200px] max-w-[260px] rounded-xl border-2 backdrop-blur-sm
         transition-all duration-200
-        ${style.bg} ${style.border}
+        ${style.bg}
+        ${hasError ? '!border-red-500 !shadow-[0_0_24px_rgba(239,68,68,0.5)]' : style.border}
         ${selected ? `ring-2 ring-white/70 ${style.glow} scale-[1.02]` : ''}
       `}
     >
@@ -122,6 +124,11 @@ const NodeShell = ({
         <span className={`text-[10px] font-bold tracking-widest ${style.accent}`}>
           {style.label}
         </span>
+        {hasError && (
+          <span className="ml-auto text-red-400 text-xs" title="Este nodo tiene errores">
+            ⚠️
+          </span>
+        )}
       </div>
 
       {/* Body */}

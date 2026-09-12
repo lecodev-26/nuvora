@@ -27,7 +27,8 @@ import { NODE_TYPES } from './nodes';
 // CONVERSIÓN BUILDER → REACT FLOW
 // ============================================================
 
-function builderToFlowNodes(builderNodes, selectedNodeId) {
+function builderToFlowNodes(builderNodes, selectedNodeId, errorNodeIds) {
+  const errorSet = errorNodeIds instanceof Set ? errorNodeIds : new Set();
   return builderNodes.map((n) => ({
     id: n.node_id,
     type: n.type,
@@ -38,6 +39,7 @@ function builderToFlowNodes(builderNodes, selectedNodeId) {
       name: n.name,
       config: n.config,
       label: n.name || null,
+      hasError: errorSet.has(n.node_id),
     },
     selected: n.node_id === selectedNodeId,
   }));
@@ -109,10 +111,11 @@ const Canvas = ({
   onEdgeClick,
   selectedNodeId,
   selectedTransitionId,
+  errorNodeIds,
 }) => {
   const flowNodes = useMemo(
-    () => builderToFlowNodes(builderNodes, selectedNodeId),
-    [builderNodes, selectedNodeId]
+    () => builderToFlowNodes(builderNodes, selectedNodeId, errorNodeIds),
+    [builderNodes, selectedNodeId, errorNodeIds]
   );
 
   const flowEdges = useMemo(
