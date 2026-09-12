@@ -8,6 +8,7 @@ import Canvas from '../components/canvas/Canvas';
 import NodeInspector from '../components/inspector/NodeInspector';
 import TransitionInspector from '../components/inspector/TransitionInspector';
 import NodePalette from '../components/builder/NodePalette';
+import RunPanel from '../components/builder/RunPanel';
 import Button from '../components/Button';
 
 /**
@@ -60,6 +61,7 @@ const WorkflowBuilder = () => {
 
   const [saveMessage, setSaveMessage] = useState(null);
   const [showErrorPanel, setShowErrorPanel] = useState(true);
+  const [showRunPanel, setShowRunPanel] = useState(false);
 
   // ============================================================
   // VALIDACIÓN LOCAL (UX)
@@ -251,7 +253,7 @@ const WorkflowBuilder = () => {
   }, [selectedTransition, deleteTransition, clearSelection]);
 
   // ============================================================
-  // TECLADO GLOBAL: Delete/Backspace/Escape/Ctrl+Z/Ctrl+Shift+Z/Ctrl+Y
+  // TECLADO GLOBAL
   // ============================================================
 
   useEffect(() => {
@@ -259,7 +261,6 @@ const WorkflowBuilder = () => {
       const tag = document.activeElement?.tagName;
       const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
-      // Undo/Redo (funcionan incluso en inputs; son atajos globales)
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -271,13 +272,11 @@ const WorkflowBuilder = () => {
         return;
       }
       if (mod && e.key.toLowerCase() === 'y') {
-        // Alternativa Windows para redo
         e.preventDefault();
         if (canRedo) redo();
         return;
       }
 
-      // Delete/Backspace solo si NO estamos en input
       if (!inInput && (e.key === 'Delete' || e.key === 'Backspace')) {
         if (selectedTransitionId && selectedTransition) {
           e.preventDefault();
@@ -375,6 +374,9 @@ const WorkflowBuilder = () => {
     );
   }
 
+  // ¿Se puede probar? (workflow guardado = tiene id válido)
+  const canRun = workflowId && workflowId !== 'new';
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -456,6 +458,17 @@ const WorkflowBuilder = () => {
               {saveMessage.text}
             </span>
           )}
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowRunPanel(true)}
+            disabled={!canRun}
+            title={canRun ? 'Probar workflow' : 'Guarda el workflow primero'}
+          >
+            ▶ Probar
+          </Button>
+
           <Button
             variant="primary"
             size="sm"
@@ -557,6 +570,16 @@ const WorkflowBuilder = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal de ejecución */}
+      <RunPanel
+        open={showRunPanel}
+        onClose={() => setShowRunPanel(false)}
+        botId={botId}
+        workflowId={workflowId}
+        nodes={nodes}
+        dirty={dirty}
+      />
     </div>
   );
 };
