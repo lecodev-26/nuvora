@@ -8,6 +8,7 @@ import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
 import Training from './pages/Training';
 import WorkflowBuilder from './pages/WorkflowBuilder';
+import WorkflowsList from './pages/WorkflowsList';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -88,14 +89,28 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+
+      {/* Workflows: lista → /workflows/:botId */}
       <Route
         path="/workflows/:botId"
+        element={
+          <ProtectedRoute>
+            <WorkflowsList />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Workflows: nuevo → /workflows/:botId/new */}
+      <Route
+        path="/workflows/:botId/new"
         element={
           <ProtectedRoute>
             <WorkflowBuilder />
           </ProtectedRoute>
         }
       />
+
+      {/* Workflows: editar existente → /workflows/:botId/:workflowId */}
       <Route
         path="/workflows/:botId/:workflowId"
         element={
@@ -104,6 +119,7 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

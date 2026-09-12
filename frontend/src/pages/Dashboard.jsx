@@ -304,6 +304,12 @@ const Dashboard = () => {
           >
             🎓 Training Assistant
           </button>
+          <button
+            onClick={() => selectedBot ? navigate(`/workflows/${selectedBot.id}`) : alert('Selecciona un bot primero')}
+            className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition"
+          >
+            🔀 Workflows
+          </button>
           <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
             🔌 Instalar widget
           </button>
