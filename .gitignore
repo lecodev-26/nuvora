@@ -5,3 +5,5 @@ __pycache__/
 *.backup
 nuvora.db*
 *.db.pre-*
+.vercel
+.env*
