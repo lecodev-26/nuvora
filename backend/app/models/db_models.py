@@ -313,3 +313,48 @@ class WorkflowTransition(Base):
 
     def __repr__(self):
         return f"<WorkflowTransition {self.from_node_id} -> {self.to_node_id}>"
+
+
+# ============================================================
+# USER AI CONFIG (Fase 14.7.4b — BYOK)
+# ============================================================
+
+class UserAIConfig(Base):
+    """
+    Configuración de API key propia del usuario para un provider de IA.
+
+    BYOK (Bring Your Own Key): el usuario puede traer su propia API key
+    de Gemini, Groq o DeepSeek. Si la tiene, Nuvora la usa en lugar de
+    la suya. Si no, se usa la del sistema.
+
+    SEGURIDAD:
+        - La API key se guarda CIFRADA (Fernet).
+        - El campo `api_key_encrypted` contiene el ciphertext.
+        - Nunca se devuelve la key al frontend (solo si existe o no).
+    """
+    __tablename__ = "user_ai_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    provider = Column(String(50), nullable=False)  # gemini | groq | deepseek
+    api_key_encrypted = Column(Text, nullable=False)  # ciphertext Fernet
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="uq_user_ai_config_provider"),
+    )
+
+    def __repr__(self):
+        return f"<UserAIConfig user={self.user_id} provider={self.provider}>"
+

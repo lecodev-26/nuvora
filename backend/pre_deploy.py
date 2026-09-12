@@ -4,12 +4,13 @@ Pre-Deploy Script para Render
 Ejecuta ANTES de arrancar la API en Render.
 
 Responsabilidades:
-1. Crear todas las tablas en PostgreSQL (si no existen)
-2. Ejecutar migración 14.1.1 (Core Universal)
-3. Ejecutar migración 14.3 (Knowledge Engine 2.0)
-4. Ejecutar migración 14.5 (Workflow Engine)
-5. NO borra datos. Idempotente.
-6. NUNCA falla el arranque si las tablas base están OK.
+    1. Crear todas las tablas en PostgreSQL (si no existen)
+    2. Ejecutar migración 14.1.1 (Core Universal)
+    3. Ejecutar migración 14.3 (Knowledge Engine 2.0)
+    4. Ejecutar migración 14.5 (Workflow Engine)
+    5. Ejecutar migración 14.7 (BYOK - user_ai_configs)
+    6. NO borra datos. Idempotente.
+    7. NUNCA falla el arranque si las tablas base están OK.
 """
 
 import sys
@@ -23,6 +24,7 @@ from app.models.db_models import (
     Bot, Memory, User, Conversation, MemoryCategory,
     Source, SourceChunk,
     Workflow, WorkflowNode, WorkflowTransition,
+    UserAIConfig,
 )
 
 
@@ -86,6 +88,21 @@ def run_migration_14_5():
         print("   (La API arrancará igualmente)")
 
 
+def run_migration_14_7():
+    print("\n" + "=" * 70)
+    print("📦 PASO 5: Migración 14.7 (BYOK - user_ai_configs)...")
+    print("=" * 70)
+    try:
+        from migrations import migrate_prod_14_7
+        migrate_prod_14_7.run_migration()
+        print("✅ Migración 14.7 completada")
+    except SystemExit:
+        print("⚠️  Migración 14.7 omitida (SQLite o ya migrada)")
+    except Exception as e:
+        print(f"⚠️  Migración 14.7 falló: {e}")
+        print("   (La API arrancará igualmente)")
+
+
 def main():
     print("\n" + "=" * 70)
     print("🚀 PRE-DEPLOY NUVORA")
@@ -105,6 +122,7 @@ def main():
     run_migration_14_1_1()
     run_migration_14_3()
     run_migration_14_5()
+    run_migration_14_7()
 
     print("\n" + "=" * 70)
     print("🎉 PRE-DEPLOY COMPLETADO")
