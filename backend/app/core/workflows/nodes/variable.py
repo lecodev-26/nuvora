@@ -3,16 +3,20 @@ VARIABLE — Crea o modifica una variable en el contexto.
 
 Config esperada:
     {
-        "name": "service",
-        "value": "peluquería"
+        "name": "greeting",
+        "value": "Hola {{name}}"
     }
 
 Efecto:
-    context.variables["service"] = "peluquería"
+    context.variables["greeting"] = "Hola Manuel"
+
+NOTA: el valor se interpola contra las variables ACTUALES del contexto
+antes de asignar. Si quieres asignar literal "{{x}}", usa escape (futuro).
 """
 
 from app.core.workflows.nodes.base import BaseNode
 from app.core.workflows.execution import ExecutionContext, NodeResult, ExecutionStatus
+from app.core.workflows.variables import interpolate
 
 
 class VariableNode(BaseNode):
@@ -23,7 +27,9 @@ class VariableNode(BaseNode):
         name = config.get("name", "")
         value = config.get("value", "")
 
-        # TODO 14.5.6: interpolar value con {{variables}}
+        # Interpolar {{variables}} en el valor
+        if isinstance(value, str):
+            value = interpolate(value, context.variables)
 
         variables_update = {}
         if name:

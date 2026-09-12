@@ -6,13 +6,15 @@ Config esperada:
         "text": "Hola {{name}}"
     }
 
-Las variables se interpolan contra context.variables.
-La interpolación real se implementará en 14.5.6 (variables.py).
-Por ahora, dejamos un placeholder que NO rompe nada.
+Las variables se interpolan contra context.variables:
+    {{name}} → context.variables["name"]
+
+Si la variable no existe, se deja el placeholder original (no rompe).
 """
 
 from app.core.workflows.nodes.base import BaseNode
 from app.core.workflows.execution import ExecutionContext, NodeResult, ExecutionStatus
+from app.core.workflows.variables import interpolate
 
 
 class MessageNode(BaseNode):
@@ -22,8 +24,8 @@ class MessageNode(BaseNode):
         config = self._parse_config(node)
         text = config.get("text", "")
 
-        # TODO 14.5.6: interpolar con {{variables}}
-        # Por ahora, texto plano
+        # Interpolar {{variables}} con el contexto
+        text = interpolate(text, context.variables)
 
         return NodeResult(
             output=text,

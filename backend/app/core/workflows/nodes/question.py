@@ -8,7 +8,7 @@ Config esperada:
     }
 
 Comportamiento:
-    - Genera output (la pregunta).
+    - Genera output (la pregunta), con {{variables}} interpoladas.
     - Marca status=WAITING_INPUT.
     - El engine se detiene aquí hasta que llegue una entrada
       (persistencia real de ejecuciones en 14.13).
@@ -17,6 +17,7 @@ Comportamiento:
 
 from app.core.workflows.nodes.base import BaseNode
 from app.core.workflows.execution import ExecutionContext, NodeResult, ExecutionStatus
+from app.core.workflows.variables import interpolate
 
 
 class QuestionNode(BaseNode):
@@ -27,7 +28,8 @@ class QuestionNode(BaseNode):
         text = config.get("text", "")
         variable_name = config.get("variable", "")
 
-        # TODO 14.5.6: interpolar text con {{variables}}
+        # Interpolar {{variables}} en el texto de la pregunta
+        text = interpolate(text, context.variables)
 
         # Guardamos la variable esperada en el contexto (sin valor aún)
         variables_update = {}

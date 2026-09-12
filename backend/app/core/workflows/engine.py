@@ -15,20 +15,20 @@ RESPONSABILIDADES:
 
 DISEÑO:
     - El engine NO conoce el frontend ni canales externos.
-    - El engine NO evalúa condiciones (eso es 14.5.6).
     - El engine NO persiste ejecuciones (eso es 14.13).
     - El engine NO usa IA.
 
-RESOLUCIÓN DE TRANSICIONES (14.5.5 — temporal):
+RESOLUCIÓN DE TRANSICIONES (14.5.6):
     - Si el nodo devuelve next_node_id → usarlo.
-    - Si no, tomar la primera transición saliente ordenada por 'order'.
-    - En 14.5.6 se sustituye por evaluación real de conditions.
+    - Si el nodo es CONDITION → evaluar la 'condition' de cada transición
+      saliente con conditions.evaluate_condition() y elegir la primera
+      que devuelva True.
+    - Si es otro tipo → primera transición saliente ordenada por 'order'.
 
 NOTA SOBRE EL FORMATO DE NODOS:
-    El engine acepta nodos en formato dict (para tests en memoria y para
-    el router de 14.5.7/14.5.8 que convertirá SQLAlchemy → dict).
-    Antes de pasarlos a los handlers (que esperan objetos con atributos
-    .node_id, .type, .config), los envuelve con _NodeView.
+    El engine acepta nodos en formato dict. Antes de pasarlos a los
+    handlers (que esperan objetos con atributos .node_id, .type, .config),
+    los envuelve con _node_view.
 """
 
 from typing import Optional, Any
@@ -44,9 +44,11 @@ from app.core.workflows.errors import (
     WorkflowExecutionError,
     MaxStepsExceeded,
     NodeExecutionError,
+    ConditionError,
 )
 from app.core.workflows.validator import WorkflowValidator
 from app.core.workflows.nodes import get_node_handler
+from app.core.workflows.conditions import evaluate_condition
 
 
 def _node_view(node_dict: dict) -> SimpleNamespace:
@@ -57,12 +59,6 @@ def _node_view(node_dict: dict) -> SimpleNamespace:
         node.node_id
         node.type
         node.config  (str JSON o None)
-
-    El engine trabaja con dicts (más fácil de testear y de serializar).
-    Esta función hace la conversión.
-
-    IMPORTANTE: node.config se deja como JSON string si viene dict,
-    porque BaseNode._parse_config() espera un string JSON o None.
     """
     import json
 
@@ -109,16 +105,14 @@ class WorkflowEngine:
             workflow_id: id del workflow (para contexto, futura persistencia).
             initial_variables: variables iniciales del contexto.
             max_steps: límite de pasos (protección contra bucles).
-            start_node_id: si se pasa, se usa como nodo inicial en vez de buscar START.
+            start_node_id: si se pasa, se usa como nodo inicial.
 
         Returns:
             ExecutionResult
 
         Raises:
-            WorkflowValidationError: workflow inválido.
-            MaxStepsExceeded: se superó max_steps.
-            WorkflowExecutionError: error estructural.
-            NodeExecutionError: error al ejecutar un nodo.
+            WorkflowValidationError, MaxStepsExceeded,
+            WorkflowExecutionError, NodeExecutionError, ConditionError
         """
         # 1. Validación estática
         self.validator.validate(workflow_data)
@@ -153,7 +147,6 @@ class WorkflowEngine:
 
         # 5. Bucle principal
         while True:
-            # Protección contra bucles
             if context.steps >= max_steps:
                 raise MaxStepsExceeded(max_steps=max_steps)
 
@@ -164,12 +157,10 @@ class WorkflowEngine:
                 )
 
             node_type = node.get("type")
-            handler = get_node_handler(node_type)  # Lanza ValueError si desconoce
+            handler = get_node_handler(node_type)
 
-            # Envolver el dict en un objeto con atributos (.node_id, .type, .config)
             node_obj = _node_view(node)
 
-            # Ejecutar nodo
             try:
                 node_result = handler.execute(node_obj, context)
             except Exception as e:
@@ -178,14 +169,12 @@ class WorkflowEngine:
                     message=str(e),
                 ) from e
 
-            # Registrar paso en contexto
             context.register_step(
                 node_id=current_node_id,
                 node_type=node_type,
                 output=node_result.output,
             )
 
-            # Acumular output si hay
             if node_result.output is not None:
                 outputs.append({
                     "step": context.steps,
@@ -194,11 +183,9 @@ class WorkflowEngine:
                     "text": node_result.output,
                 })
 
-            # Actualizar variables
             if node_result.variables_update:
                 context.variables.update(node_result.variables_update)
 
-            # ¿El nodo pide pausa? (QUESTION)
             if node_result.status == ExecutionStatus.WAITING_INPUT:
                 return ExecutionResult(
                     status=ExecutionStatus.WAITING_INPUT,
@@ -208,7 +195,6 @@ class WorkflowEngine:
                     steps_used=context.steps,
                 )
 
-            # ¿El nodo indica COMPLETED? (END)
             if node_result.status == ExecutionStatus.COMPLETED:
                 return ExecutionResult(
                     status=ExecutionStatus.COMPLETED,
@@ -218,10 +204,12 @@ class WorkflowEngine:
                     steps_used=context.steps,
                 )
 
-            # Resolver siguiente nodo
             next_id = self._resolve_next_node(
                 node_result=node_result,
                 current_node_id=current_node_id,
+                node_type=node_type,
+                node=node,
+                variables=context.variables,
                 transitions=transitions,
                 nodes_map=nodes_map,
             )
@@ -241,6 +229,9 @@ class WorkflowEngine:
         self,
         node_result,
         current_node_id: str,
+        node_type: str,
+        node: dict,
+        variables: dict,
         transitions: list[dict],
         nodes_map: dict,
     ) -> Optional[str]:
@@ -249,9 +240,9 @@ class WorkflowEngine:
 
         Prioridad:
             1. node_result.next_node_id (si el nodo lo forzó explícitamente).
-            2. Primera transición saliente ordenada por 'order'.
-
-        NOTA: En 14.5.6 se añadirá evaluación de 'condition'.
+            2. Si el nodo es CONDITION → evaluar las condiciones de las
+               transiciones salientes y elegir la primera que devuelva True.
+            3. Si es otro tipo → primera transición saliente por 'order'.
         """
         # 1. Salto explícito del nodo
         if node_result.next_node_id:
@@ -271,12 +262,81 @@ class WorkflowEngine:
         if not outgoing:
             return None
 
-        # Ordenar por 'order' (por defecto 0)
+        # 3. Ordenar por 'order' (por defecto 0)
         outgoing.sort(key=lambda t: t.get("order", 0) or 0)
 
-        # 14.5.5: primera transición (placeholder)
-        # 14.5.6: evaluará condition y elegirá la correcta
+        # 4. Si es CONDITION → evaluar condiciones
+        if node_type == "condition":
+            return self._resolve_condition(
+                outgoing=outgoing,
+                node=node,
+                variables=variables,
+                nodes_map=nodes_map,
+                current_node_id=current_node_id,
+            )
+
+        # 5. Otros tipos → primera transición por order
         return outgoing[0]["to_node_id"]
+
+    def _resolve_condition(
+        self,
+        outgoing: list[dict],
+        node: dict,
+        variables: dict,
+        nodes_map: dict,
+        current_node_id: str,
+    ) -> str:
+        """
+        Evalúa las transiciones de un nodo CONDITION.
+
+        Cada transición debe tener:
+            - 'condition': expresión a evaluar (ej: "age > 18").
+            - 'to_node_id': destino si la condición es True.
+
+        Reglas:
+            - Se recorren en orden (por 'order').
+            - La primera que devuelva True → se elige.
+            - Si ninguna devuelve True → WorkflowExecutionError.
+
+        Errores:
+            - Si 'condition' está vacío → ConditionError.
+            - Si la expresión es inválida → ConditionError.
+            - Si no hay match → WorkflowExecutionError.
+        """
+        for t in outgoing:
+            condition_expr = t.get("condition")
+            to_node_id = t.get("to_node_id")
+
+            if condition_expr is None or str(condition_expr).strip() == "":
+                # Transición sin condición (ej: else) → se toma directamente
+                # Nota: en 14.5.6 permitimos esto como "else" implícito.
+                if to_node_id not in nodes_map:
+                    raise WorkflowExecutionError(
+                        f"Transición de CONDITION '{current_node_id}' apunta a "
+                        f"nodo inexistente: '{to_node_id}'."
+                    )
+                return to_node_id
+
+            # Evaluar la condición
+            try:
+                result = evaluate_condition(str(condition_expr), variables)
+            except ConditionError:
+                # Condición inválida → propagar tal cual
+                raise
+
+            if result:
+                if to_node_id not in nodes_map:
+                    raise WorkflowExecutionError(
+                        f"Transición de CONDITION '{current_node_id}' apunta a "
+                        f"nodo inexistente: '{to_node_id}'."
+                    )
+                return to_node_id
+
+        # Ninguna condición se cumplió
+        raise WorkflowExecutionError(
+            f"Ninguna transición de CONDITION '{current_node_id}' devolvió True. "
+            f"Variables: {variables}"
+        )
 
 
 def run_workflow(
