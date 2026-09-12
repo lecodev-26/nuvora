@@ -12,7 +12,7 @@ import InspectorResponse from './InspectorResponse';
  * Al seleccionar un nodo, muestra el formulario específico según su tipo.
  * START y END no tienen inspector propio (solo header + nombre).
  */
-const NodeInspector = ({ node, onUpdate, onDelete }) => {
+const NodeInspector = ({ node, onUpdate, onDelete, onDuplicate }) => {
   if (!node) {
     return (
       <div className="text-white/40 text-sm">
@@ -82,7 +82,11 @@ const NodeInspector = ({ node, onUpdate, onDelete }) => {
 
   return (
     <div>
-      <InspectorHeader node={node} onDelete={() => onDelete(node.node_id)} />
+      <InspectorHeader
+        node={node}
+        onDelete={() => onDelete(node.node_id)}
+        onDuplicate={onDuplicate ? () => onDuplicate(node.node_id) : undefined}
+      />
       {body}
     </div>
   );

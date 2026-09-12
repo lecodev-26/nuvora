@@ -248,6 +248,21 @@ function snapshot(state) {
   };
 }
 
+/**
+ * Genera un node_id único del estilo "type_N" (type_1, type_2, ...)
+ * Comprueba contra los nodos actuales para evitar colisiones.
+ */
+export function generateNodeId(type, existingNodes) {
+  const prefix = type;
+  let n = 1;
+  const usedIds = new Set(existingNodes.map((node) => node.node_id));
+
+  while (usedIds.has(`${prefix}_${n}`)) {
+    n += 1;
+  }
+  return `${prefix}_${n}`;
+}
+
 export function useWorkflowBuilder() {
   const [state, dispatch] = useReducer(reducer, initialState);
 

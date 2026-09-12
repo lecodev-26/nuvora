@@ -3,9 +3,9 @@ import { TYPE_STYLES, FALLBACK_STYLE } from '../canvas/NodeShell';
 
 /**
  * InspectorHeader — cabecera común del panel inspector.
- * Muestra: icono + tipo + node_id + botón borrar.
+ * Muestra: icono + tipo + node_id + acciones (duplicar, borrar).
  */
-const InspectorHeader = ({ node, onDelete }) => {
+const InspectorHeader = ({ node, onDelete, onDuplicate }) => {
   const style = TYPE_STYLES[node.type] || FALLBACK_STYLE;
 
   return (
@@ -24,16 +24,28 @@ const InspectorHeader = ({ node, onDelete }) => {
         </div>
       </div>
 
-      {onDelete && (
-        <button
-          type="button"
-          onClick={onDelete}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded p-1 transition-colors shrink-0"
-          title="Eliminar nodo"
-        >
-          🗑
-        </button>
-      )}
+      <div className="flex items-center gap-1 shrink-0">
+        {onDuplicate && (
+          <button
+            type="button"
+            onClick={onDuplicate}
+            className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded p-1 transition-colors"
+            title="Duplicar nodo"
+          >
+            ⧉
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded p-1 transition-colors"
+            title="Eliminar nodo"
+          >
+            🗑
+          </button>
+        )}
+      </div>
     </div>
   );
 };

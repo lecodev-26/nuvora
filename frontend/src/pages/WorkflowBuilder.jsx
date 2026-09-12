@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useWorkflowBuilder } from '../hooks/useWorkflowBuilder';
+import { useWorkflowBuilder, generateNodeId } from '../hooks/useWorkflowBuilder';
 import { workflowService } from '../services/workflowApi';
 import Canvas from '../components/canvas/Canvas';
 import NodeInspector from '../components/inspector/NodeInspector';
 import TransitionInspector from '../components/inspector/TransitionInspector';
+import NodePalette from '../components/builder/NodePalette';
 import Button from '../components/Button';
 
 /**
@@ -124,10 +125,6 @@ const WorkflowBuilder = () => {
   // TRANSICIÓN SELECCIONADA
   // ============================================================
 
-  /**
-   * El id del edge viene en formato: `from→to→label→idx`
-   * Lo parseamos para encontrar la transición correspondiente.
-   */
   const selectedTransition = useMemo(() => {
     if (!selectedTransitionId) return null;
     const parts = selectedTransitionId.split('→');
@@ -173,8 +170,24 @@ const WorkflowBuilder = () => {
   }, [addTransition]);
 
   // ============================================================
-  // ACCIONES DEL INSPECTOR (NODE)
+  // ACCIONES DE NODOS
   // ============================================================
+
+  const handleAddNodeByType = useCallback((type) => {
+    const nodeId = generateNodeId(type, nodes);
+    // Posición: si es el primero, centro; si no, offset incremental
+    const position = nodes.length === 0
+      ? { x: 300, y: 150 }
+      : { x: 300 + Math.random() * 200, y: 150 + Math.random() * 200 };
+
+    addNode({
+      node_id: nodeId,
+      type,
+      name: null,
+      config: null,
+      position,
+    });
+  }, [nodes, addNode]);
 
   const handleUpdateNode = useCallback((nodeId, patch) => {
     updateNode(nodeId, patch);
@@ -184,6 +197,26 @@ const WorkflowBuilder = () => {
     if (!confirm(`¿Eliminar el nodo '${nodeId}' y sus conexiones?`)) return;
     deleteNode(nodeId);
   }, [deleteNode]);
+
+  const handleDuplicateNode = useCallback((nodeId) => {
+    const original = nodes.find((n) => n.node_id === nodeId);
+    if (!original) return;
+
+    const newId = generateNodeId(original.type, nodes);
+    // Offset para que no quede encima
+    const newPosition = {
+      x: (original.position?.x || 0) + 80,
+      y: (original.position?.y || 0) + 80,
+    };
+
+    addNode({
+      node_id: newId,
+      type: original.type,
+      name: original.name,
+      config: original.config ? JSON.parse(JSON.stringify(original.config)) : null,
+      position: newPosition,
+    });
+  }, [nodes, addNode]);
 
   // ============================================================
   // ACCIONES DEL INSPECTOR (TRANSITION)
@@ -207,6 +240,42 @@ const WorkflowBuilder = () => {
     );
     clearSelection();
   }, [selectedTransition, deleteTransition, clearSelection]);
+
+  // ============================================================
+  // TECLA DELETE/BACKSPACE GLOBAL
+  // ============================================================
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignorar si el foco está en un input/textarea
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedTransitionId && selectedTransition) {
+          e.preventDefault();
+          handleDeleteTransition();
+        } else if (selectedNodeId) {
+          e.preventDefault();
+          handleDeleteNode(selectedNodeId);
+        }
+      }
+
+      if (e.key === 'Escape') {
+        clearSelection();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    selectedNodeId,
+    selectedTransitionId,
+    selectedTransition,
+    handleDeleteNode,
+    handleDeleteTransition,
+    clearSelection,
+  ]);
 
   // ============================================================
   // GUARDAR
@@ -239,24 +308,6 @@ const WorkflowBuilder = () => {
       setSaveError(msg);
       setSaveMessage({ type: 'error', text: msg });
     }
-  };
-
-  // ============================================================
-  // AÑADIR NODO
-  // ============================================================
-
-  const handleAddNode = () => {
-    const id = prompt('ID del nodo (ej: s1, m1, e1):');
-    if (!id) return;
-    const type = prompt('Tipo (start|message|question|condition|variable|response|end):');
-    if (!type) return;
-
-    const position = {
-      x: 200 + Math.random() * 300,
-      y: 100 + Math.random() * 300,
-    };
-
-    addNode({ node_id: id, type, name: null, config: null, position });
   };
 
   // ============================================================
@@ -365,11 +416,13 @@ const WorkflowBuilder = () => {
             onEdgeClick={handleEdgeClick}
           />
 
-          {/* Botón flotante: añadir nodo */}
-          <div className="absolute bottom-6 left-6 flex gap-2">
-            <Button variant="secondary" size="sm" onClick={handleAddNode}>
-              + Añadir nodo
-            </Button>
+          {/* Paleta de nodos */}
+          <NodePalette onAdd={handleAddNodeByType} />
+
+          {/* Ayuda teclado */}
+          <div className="absolute bottom-6 right-6 text-white/30 text-xs space-y-1 text-right pointer-events-none">
+            <div>Delete: borrar selección</div>
+            <div>Esc: deseleccionar</div>
           </div>
         </div>
 
@@ -386,6 +439,7 @@ const WorkflowBuilder = () => {
               node={selectedNode}
               onUpdate={handleUpdateNode}
               onDelete={handleDeleteNode}
+              onDuplicate={handleDuplicateNode}
             />
           )}
 
