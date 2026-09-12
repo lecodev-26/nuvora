@@ -12,8 +12,6 @@ import Button from '../components/Button';
 
 /**
  * WorkflowBuilder — Página del Visual Workflow Builder.
- *
- * Ruta: /workflows/:botId y /workflows/:botId/:workflowId
  */
 
 const WorkflowBuilder = () => {
@@ -35,6 +33,8 @@ const WorkflowBuilder = () => {
     selectedNodeId,
     selectedNode,
     selectedTransitionId,
+    canUndo,
+    canRedo,
     loadStart,
     loadSuccess,
     loadError,
@@ -52,6 +52,8 @@ const WorkflowBuilder = () => {
     saveStart,
     saveSuccess,
     saveError: setSaveError,
+    undo,
+    redo,
     buildSavePayload,
     reset,
   } = builder;
@@ -68,11 +70,7 @@ const WorkflowBuilder = () => {
     [nodes, transitions, workflowMetadata]
   );
 
-  const errorNodeIds = useMemo(
-    () => getErrorNodeIds(validation),
-    [validation]
-  );
-
+  const errorNodeIds = useMemo(() => getErrorNodeIds(validation), [validation]);
   const hasBlockingErrors = validation.errors.length > 0;
 
   // ============================================================
@@ -162,17 +160,17 @@ const WorkflowBuilder = () => {
   // ACCIONES DEL CANVAS
   // ============================================================
 
-  const handleNodeClick = useCallback((nodeId) => {
-    selectNode(nodeId);
-  }, [selectNode]);
+  const handleNodeClick = useCallback((nodeId) => selectNode(nodeId), [selectNode]);
 
-  const handleNodeMove = useCallback((nodeId, position) => {
-    moveNode(nodeId, position);
-  }, [moveNode]);
+  const handleNodeMove = useCallback(
+    (nodeId, position) => moveNode(nodeId, position),
+    [moveNode]
+  );
 
-  const handleEdgeClick = useCallback((edgeId) => {
-    selectTransition(edgeId);
-  }, [selectTransition]);
+  const handleEdgeClick = useCallback(
+    (edgeId) => selectTransition(edgeId),
+    [selectTransition]
+  );
 
   const handleConnect = useCallback(({ source, target, sourceHandle }) => {
     const label = sourceHandle === 'true' ? 'true'
@@ -200,9 +198,10 @@ const WorkflowBuilder = () => {
     addNode({ node_id: nodeId, type, name: null, config: null, position });
   }, [nodes, addNode]);
 
-  const handleUpdateNode = useCallback((nodeId, patch) => {
-    updateNode(nodeId, patch);
-  }, [updateNode]);
+  const handleUpdateNode = useCallback(
+    (nodeId, patch) => updateNode(nodeId, patch),
+    [updateNode]
+  );
 
   const handleDeleteNode = useCallback((nodeId) => {
     if (!confirm(`¿Eliminar el nodo '${nodeId}' y sus conexiones?`)) return;
@@ -252,15 +251,34 @@ const WorkflowBuilder = () => {
   }, [selectedTransition, deleteTransition, clearSelection]);
 
   // ============================================================
-  // TECLA DELETE/BACKSPACE GLOBAL
+  // TECLADO GLOBAL: Delete/Backspace/Escape/Ctrl+Z/Ctrl+Shift+Z/Ctrl+Y
   // ============================================================
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Undo/Redo (funcionan incluso en inputs; son atajos globales)
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (canRedo) redo();
+        } else {
+          if (canUndo) undo();
+        }
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        // Alternativa Windows para redo
+        e.preventDefault();
+        if (canRedo) redo();
+        return;
+      }
+
+      // Delete/Backspace solo si NO estamos en input
+      if (!inInput && (e.key === 'Delete' || e.key === 'Backspace')) {
         if (selectedTransitionId && selectedTransition) {
           e.preventDefault();
           handleDeleteTransition();
@@ -281,6 +299,10 @@ const WorkflowBuilder = () => {
     selectedNodeId,
     selectedTransitionId,
     selectedTransition,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
     handleDeleteNode,
     handleDeleteTransition,
     clearSelection,
@@ -293,7 +315,6 @@ const WorkflowBuilder = () => {
   const handleSave = async () => {
     setSaveMessage(null);
 
-    // Bloquear si hay errores críticos de validación local
     if (hasBlockingErrors) {
       setSaveMessage({
         type: 'error',
@@ -396,6 +417,36 @@ const WorkflowBuilder = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Undo / Redo */}
+          <div className="flex items-center gap-1 border-r border-white/10 pr-3">
+            <button
+              type="button"
+              onClick={() => canUndo && undo()}
+              disabled={!canUndo}
+              title="Deshacer (Ctrl+Z)"
+              className={`px-2 py-1 rounded text-sm transition-colors ${
+                canUndo
+                  ? 'text-white hover:bg-white/10'
+                  : 'text-white/20 cursor-not-allowed'
+              }`}
+            >
+              ⟲
+            </button>
+            <button
+              type="button"
+              onClick={() => canRedo && redo()}
+              disabled={!canRedo}
+              title="Rehacer (Ctrl+Shift+Z / Ctrl+Y)"
+              className={`px-2 py-1 rounded text-sm transition-colors ${
+                canRedo
+                  ? 'text-white hover:bg-white/10'
+                  : 'text-white/20 cursor-not-allowed'
+              }`}
+            >
+              ⟳
+            </button>
+          </div>
+
           {saveMessage && (
             <span
               className={`text-sm ${
@@ -416,7 +467,7 @@ const WorkflowBuilder = () => {
         </div>
       </div>
 
-      {/* Panel de validación (colapsable) */}
+      {/* Panel de validación */}
       {hasBlockingErrors && showErrorPanel && (
         <div className="bg-red-500/10 border-b border-red-500/30 px-6 py-3">
           <div className="flex items-start justify-between gap-4">
@@ -432,21 +483,6 @@ const WorkflowBuilder = () => {
                   </li>
                 ))}
               </ul>
-              {validation.warnings.length > 0 && (
-                <div className="mt-2">
-                  <div className="text-amber-400 font-semibold text-xs mb-1">
-                    Avisos ({validation.warnings.length})
-                  </div>
-                  <ul className="text-amber-300/70 text-xs space-y-0.5 max-h-20 overflow-y-auto">
-                    {validation.warnings.slice(0, 5).map((w, i) => (
-                      <li key={i}>• {w.message}</li>
-                    ))}
-                    {validation.warnings.length > 5 && (
-                      <li className="italic">...y {validation.warnings.length - 5} más</li>
-                    )}
-                  </ul>
-                </div>
-              )}
             </div>
             <button
               type="button"
@@ -468,20 +504,8 @@ const WorkflowBuilder = () => {
         </div>
       )}
 
-      {/* Validación de nodos del hook (duplicados) */}
-      {validationErrors.length > 0 && (
-        <div className="bg-red-500/10 border-b border-red-500/30 px-6 py-2">
-          <div className="text-red-400 text-sm">
-            {validationErrors.map((e, i) => (
-              <div key={i}>⚠️ {e.message}</div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Área principal: Canvas + Inspector */}
+      {/* Área principal */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Canvas */}
         <div className="flex-1 relative">
           <Canvas
             nodes={nodes}
@@ -498,8 +522,8 @@ const WorkflowBuilder = () => {
           <NodePalette onAdd={handleAddNodeByType} />
 
           <div className="absolute bottom-6 right-6 text-white/30 text-xs space-y-1 text-right pointer-events-none">
-            <div>Delete: borrar selección</div>
-            <div>Esc: deseleccionar</div>
+            <div>Delete: borrar · Esc: deseleccionar</div>
+            <div>Ctrl+Z: deshacer · Ctrl+Shift+Z: rehacer</div>
           </div>
         </div>
 
@@ -527,8 +551,8 @@ const WorkflowBuilder = () => {
               <div>nodes: {nodes.length}</div>
               <div>transitions: {transitions.length}</div>
               <div>errors: {validation.errors.length}</div>
-              <div>warnings: {validation.warnings.length}</div>
-              <div>dirty: {String(dirty)}</div>
+              <div>canUndo: {String(canUndo)}</div>
+              <div>canRedo: {String(canRedo)}</div>
             </div>
           </div>
         </div>
