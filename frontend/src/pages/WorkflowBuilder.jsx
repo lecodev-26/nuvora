@@ -9,6 +9,8 @@ import NodeInspector from '../components/inspector/NodeInspector';
 import TransitionInspector from '../components/inspector/TransitionInspector';
 import NodePalette from '../components/builder/NodePalette';
 import RunPanel from '../components/builder/RunPanel';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import Spinner from '../components/ui/Spinner';
 import Button from '../components/Button';
 
 /**
@@ -62,6 +64,7 @@ const WorkflowBuilder = () => {
   const [saveMessage, setSaveMessage] = useState(null);
   const [showErrorPanel, setShowErrorPanel] = useState(true);
   const [showRunPanel, setShowRunPanel] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // ============================================================
   // VALIDACIÓN LOCAL (UX)
@@ -206,8 +209,16 @@ const WorkflowBuilder = () => {
   );
 
   const handleDeleteNode = useCallback((nodeId) => {
-    if (!confirm(`¿Eliminar el nodo '${nodeId}' y sus conexiones?`)) return;
-    deleteNode(nodeId);
+    setConfirmDialog({
+      title: 'Eliminar nodo',
+      message: `Se eliminará el nodo '${nodeId}' y todas sus conexiones. Esta acción no se puede deshacer (aunque puedes usar Ctrl+Z).`,
+      confirmText: 'Eliminar',
+      danger: true,
+      onConfirm: () => {
+        deleteNode(nodeId);
+        setConfirmDialog(null);
+      },
+    });
   }, [deleteNode]);
 
   const handleDuplicateNode = useCallback((nodeId) => {
@@ -244,13 +255,37 @@ const WorkflowBuilder = () => {
 
   const handleDeleteTransition = useCallback(() => {
     if (!selectedTransition) return;
-    if (!confirm('¿Eliminar esta transición?')) return;
-    deleteTransition(
-      selectedTransition.from_node_id,
-      selectedTransition.to_node_id
-    );
-    clearSelection();
+    setConfirmDialog({
+      title: 'Eliminar transición',
+      message: `Se eliminará la conexión '${selectedTransition.from_node_id} → ${selectedTransition.to_node_id}'.`,
+      confirmText: 'Eliminar',
+      danger: true,
+      onConfirm: () => {
+        deleteTransition(
+          selectedTransition.from_node_id,
+          selectedTransition.to_node_id
+        );
+        clearSelection();
+        setConfirmDialog(null);
+      },
+    });
   }, [selectedTransition, deleteTransition, clearSelection]);
+
+  // ============================================================
+  // BEFOREUNLOAD — avisar si hay cambios sin guardar
+  // ============================================================
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (dirty) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   // ============================================================
   // TECLADO GLOBAL
@@ -356,11 +391,7 @@ const WorkflowBuilder = () => {
   // ============================================================
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-navy flex items-center justify-center">
-        <div className="text-white/50">Cargando workflow...</div>
-      </div>
-    );
+    return <Spinner fullScreen size="lg" label="Cargando workflow..." />;
   }
 
   if (serverError) {
@@ -390,8 +421,20 @@ const WorkflowBuilder = () => {
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (dirty && !confirm('Hay cambios sin guardar. ¿Salir igualmente?')) return;
-              navigate('/dashboard');
+              if (dirty) {
+                setConfirmDialog({
+                  title: 'Salir sin guardar',
+                  message: 'Tienes cambios sin guardar. ¿Salir igualmente? Los cambios se perderán.',
+                  confirmText: 'Salir',
+                  danger: true,
+                  onConfirm: () => {
+                    setConfirmDialog(null);
+                    navigate('/dashboard');
+                  },
+                });
+              } else {
+                navigate('/dashboard');
+              }
             }}
           >
             ← Volver
@@ -579,6 +622,17 @@ const WorkflowBuilder = () => {
         workflowId={workflowId}
         nodes={nodes}
         dirty={dirty}
+      />
+
+      {/* Confirm modal genérico */}
+      <ConfirmModal
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmText={confirmDialog?.confirmText}
+        danger={confirmDialog?.danger}
+        onConfirm={confirmDialog?.onConfirm}
+        onCancel={() => setConfirmDialog(null)}
       />
     </div>
   );
