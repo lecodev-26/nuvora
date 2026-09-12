@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
 import Training from './pages/Training';
+import WorkflowBuilder from './pages/WorkflowBuilder';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -84,6 +85,22 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <Training />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/workflows/:botId"
+        element={
+          <ProtectedRoute>
+            <WorkflowBuilder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/workflows/:botId/:workflowId"
+        element={
+          <ProtectedRoute>
+            <WorkflowBuilder />
           </ProtectedRoute>
         }
       />
