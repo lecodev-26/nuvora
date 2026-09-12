@@ -158,13 +158,28 @@ class WorkflowCreate(BaseModel):
 
 
 class WorkflowUpdate(BaseModel):
-    """Actualización parcial de un workflow."""
+    """
+    Actualización de un workflow.
+
+    Semántica transaccional:
+        - Si `nodes` NO viene (None) → NO tocar nodes existentes.
+        - Si `nodes = []` → borrar TODOS los nodes (replace-all).
+        - Si `nodes = [...]` → reemplazar TODOS los nodes por los nuevos.
+
+    Lo mismo aplica a `transitions`.
+
+    Todos los campos de metadata son opcionales (actualización parcial).
+    """
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     status: Optional[WorkflowStatus] = None
     trigger: Optional[WorkflowTrigger] = None
     entry_node_id: Optional[str] = Field(None, max_length=50)
     meta: Optional[dict[str, Any]] = None
+
+    # Contenido (opcional, replace-all transaccional)
+    nodes: Optional[list[WorkflowNodeCreate]] = None
+    transitions: Optional[list[WorkflowTransitionCreate]] = None
 
 
 class WorkflowResponse(BaseModel):

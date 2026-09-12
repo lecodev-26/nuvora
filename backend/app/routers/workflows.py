@@ -241,23 +241,175 @@ def update_workflow(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Actualiza un workflow.
+
+    Semántica transaccional (14.6.2):
+        - Si `nodes` NO viene (None) → NO tocar nodes existentes.
+        - Si `nodes = []` → borrar TODOS los nodes.
+        - Si `nodes = [...]` → reemplazar TODOS los nodes.
+
+    Lo mismo para `transitions`.
+
+    Flujo:
+        auth → ownership → parse payload → validación completa
+        → BEGIN TRANSACTION
+        → actualizar metadata
+        → replace nodes/transitions (si vienen)
+        → commit
+        → recargar workflow completo
+        → response
+
+    Si cualquier operación falla → rollback → workflow anterior intacto.
+    """
+    # 1. Auth + ownership
     bot = _get_bot_or_404(db, bot_id)
     _verify_bot_ownership(bot, current_user)
     wf = _get_workflow_or_404(db, bot_id, workflow_id)
 
+    # 2. Parse payload (distinguir None de [])
+    #    - exclude_unset=True: solo los campos enviados
+    #    - NO usamos exclude_none: necesitamos distinguir None (no enviado)
+    #      de [] (enviado vacío)
     update_data = data.model_dump(exclude_unset=True)
 
-    if "meta" in update_data:
-        update_data["meta"] = json.dumps(update_data["meta"]) if update_data["meta"] else None
+    nodes_provided = "nodes" in update_data
+    transitions_provided = "transitions" in update_data
+    nodes_list = update_data.get("nodes") if nodes_provided else None
+    transitions_list = update_data.get("transitions") if transitions_provided else None
 
-    for field, value in update_data.items():
-        if hasattr(wf, field):
-            setattr(wf, field, value)
+    # 3. Validación COMPLETA antes de tocar nada
+    #    Si vienen nodes/transitions, construir el workflow resultante
+    #    (mezcla de lo existente + lo nuevo) y validarlo entero.
+    if nodes_provided or transitions_provided:
+        # Construir nodes para validar
+        if nodes_provided:
+            nodes_for_validation = nodes_list or []
+        else:
+            # No vienen nodes → usar los existentes para la validación
+            nodes_for_validation = [
+                {
+                    "node_id": n.node_id,
+                    "type": n.type,
+                    "name": n.name,
+                    "config": _parse_node_config(n.config),
+                }
+                for n in wf.nodes
+            ]
 
-    db.commit()
+        # Construir transitions para validar
+        if transitions_provided:
+            transitions_for_validation = transitions_list or []
+        else:
+            transitions_for_validation = [
+                {
+                    "from_node_id": t.from_node_id,
+                    "to_node_id": t.to_node_id,
+                    "condition": t.condition,
+                    "label": t.label,
+                    "order": t.order or 0,
+                }
+                for t in wf.transitions
+            ]
 
+        validation_payload = {
+            "nodes": nodes_for_validation,
+            "transitions": transitions_for_validation,
+        }
+
+        # Si el payload es totalmente vacío (workflow vacío), saltar validación
+        # Nota: un workflow sin START es inválido. Pero si el usuario envía
+        #       nodes=[] expresamente, probablemente está "limpiando" y luego
+        #       añadirá nodos. En ese caso:
+        #       - Permitimos nodes=[] siempre que NO haya transitions
+        #         (un workflow vacío es válido como "draft").
+        #       - Si hay transitions pero nodes vacíos → error (transiciones sin nodos).
+        is_fully_empty = (
+            len(nodes_for_validation) == 0
+            and len(transitions_for_validation) == 0
+        )
+
+        if not is_fully_empty:
+            _validate_workflow_payload(validation_payload)
+        # Si está totalmente vacío: OK, es un workflow borrador sin contenido.
+
+    # 4. BEGIN TRANSACTION (implícito — SQLAlchemy session)
+    try:
+        # 4.1 Actualizar metadata (solo los campos enviados, sin nodes/transitions)
+        metadata_fields = [
+            "name", "description", "status", "trigger",
+            "entry_node_id", "meta",
+        ]
+        for field in metadata_fields:
+            if field in update_data:
+                value = update_data[field]
+                if field == "meta":
+                    value = json.dumps(value) if value else None
+                setattr(wf, field, value)
+
+        # 4.2 Replace-all de nodes (si vienen)
+        if nodes_provided:
+            # wf.nodes.clear() con cascade="all, delete-orphan" elimina
+            # los hijos automáticamente. Añadimos los nuevos.
+            wf.nodes.clear()
+            db.flush()  # asegurar DELETE antes de INSERT (por UniqueConstraint)
+
+            for n_data in (nodes_list or []):
+                # n_data es un dict (por model_dump)
+                db.add(WorkflowNode(
+                    workflow_id=wf.id,
+                    node_id=n_data["node_id"],
+                    type=n_data["type"],
+                    name=n_data.get("name"),
+                    config=json.dumps(n_data["config"]) if n_data.get("config") else None,
+                ))
+
+        # 4.3 Replace-all de transitions (si vienen)
+        if transitions_provided:
+            wf.transitions.clear()
+            db.flush()
+
+            for t_data in (transitions_list or []):
+                db.add(WorkflowTransition(
+                    workflow_id=wf.id,
+                    from_node_id=t_data["from_node_id"],
+                    to_node_id=t_data["to_node_id"],
+                    condition=t_data.get("condition"),
+                    label=t_data.get("label"),
+                    order=t_data.get("order", 0) or 0,
+                ))
+
+        # 4.4 COMMIT
+        db.commit()
+
+    except HTTPException:
+        # Validación previa ya lanzó excepción → no hay nada que rollback
+        db.rollback()
+        raise
+    except Exception as e:
+        # Cualquier error inesperado → rollback completo
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error guardando workflow: {str(e)}",
+        )
+
+    # 5. Recargar workflow completo (con relaciones)
     wf = _load_workflow_with_relations(db, workflow_id)
     return wf
+
+
+def _parse_node_config(config_str):
+    """
+    Parsea el campo config de un nodo (TEXT JSON) a dict.
+    Helper interno para la validación del PUT.
+    """
+    if not config_str:
+        return None
+    try:
+        return json.loads(config_str)
+    except (ValueError, TypeError):
+        return None
 
 
 @router.delete("/{bot_id}/{workflow_id}")
