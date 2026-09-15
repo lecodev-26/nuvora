@@ -189,10 +189,22 @@ class GeminiProvider(AIProvider):
                     f"No hay 'parts' en la respuesta (finishReason={finish_reason})"
                 )
 
-            text = parts[0].get("text")
+            # Gemini 3.x puede devolver VARIOS parts:
+            #   - parts con "text" (respuesta real)
+            #   - parts con "thoughtSignature" (thinking interno, IGNORAR)
+            # Recorremos TODOS y nos quedamos con los que tienen "text".
+            text_chunks: list[str] = []
+            for part in parts:
+                part_text = part.get("text")
+                if part_text:
+                    text_chunks.append(part_text)
+
+            text = "".join(text_chunks)
+
             if not text:
                 raise ValueError(
-                    f"Texto vacío en la respuesta (finishReason={finish_reason})"
+                    f"Texto vacío en la respuesta (finishReason={finish_reason}, "
+                    f"parts con thoughtSignature={sum(1 for p in parts if 'thoughtSignature' in p)})"
                 )
 
             # Detectar truncado por MAX_TOKENS
