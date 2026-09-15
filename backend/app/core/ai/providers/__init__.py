@@ -56,6 +56,10 @@ def get_provider(name: Optional[str] = None) -> AIProvider:
     from app.core.ai.providers import gemini  # noqa
     from app.core.ai.providers import groq  # noqa
     from app.core.ai.providers import deepseek  # noqa
+    from app.core.ai.providers import openai  # noqa
+    from app.core.ai.providers import mistral  # noqa
+    from app.core.ai.providers import anthropic  # noqa
+    from app.core.ai.providers import ollama  # noqa
 
     from app.config import settings
 
@@ -77,6 +81,10 @@ def list_available_providers() -> list[str]:
     from app.core.ai.providers import gemini  # noqa
     from app.core.ai.providers import groq  # noqa
     from app.core.ai.providers import deepseek  # noqa
+    from app.core.ai.providers import openai  # noqa
+    from app.core.ai.providers import mistral  # noqa
+    from app.core.ai.providers import anthropic  # noqa
+    from app.core.ai.providers import ollama  # noqa
 
     return sorted(_PROVIDER_REGISTRY.keys())
 

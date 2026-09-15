@@ -17,9 +17,25 @@ from typing import Literal
 # TIPOS
 # ============================================================
 
-AIProviderName = Literal["gemini", "groq", "deepseek"]
+AIProviderName = Literal[
+    "gemini",
+    "groq",
+    "deepseek",
+    "openai",
+    "mistral",
+    "anthropic",
+    "ollama",
+]
 
-VALID_PROVIDERS = ("gemini", "groq", "deepseek")
+VALID_PROVIDERS = (
+    "gemini",
+    "groq",
+    "deepseek",
+    "openai",
+    "mistral",
+    "anthropic",
+    "ollama",
+)
 
 
 # ============================================================

@@ -258,9 +258,10 @@ def test_create_config_invalid_provider():
     print("=" * 70)
     # NOTA: Pydantic valida el Literal ANTES del endpoint → 422
     # (400 sería si pasara Pydantic y el endpoint lo rechazara)
+    # Usamos 'fake_provider' que NO está en la lista de providers válidos.
     r = client.post(
         "/ai/config",
-        json={"provider": "openai", "api_key": "test-key-1234567890"},
+        json={"provider": "fake_provider", "api_key": "test-key-1234567890"},
         headers=_Ctx.headers1,
     )
     assert r.status_code == 422, f"Esperaba 422, hubo {r.status_code}: {r.text}"
@@ -353,7 +354,8 @@ def test_delete_invalid_provider():
     print("=" * 70)
     # En DELETE, el provider viene en el path (str), así que pasa Pydantic
     # y el endpoint lo valida con _validate_provider → 400
-    r = client.delete("/ai/config/openai", headers=_Ctx.headers1)
+    # Usamos 'fake_provider' que NO está en la lista.
+    r = client.delete("/ai/config/fake_provider", headers=_Ctx.headers1)
     assert r.status_code == 400, f"Esperaba 400, hubo {r.status_code}: {r.text}"
     print(f"  ✅ 400 (rechazado por endpoint)")
 

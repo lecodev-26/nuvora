@@ -38,14 +38,28 @@ class AIConfig:
     IMPORTANTE: aquí NO se decide proveedor comercial por defecto.
     El proveedor activo se elige con AI_PROVIDER. Si mañana cambiamos
     de política comercial (gratis vs premium), NO cambia esta clase.
+
+    Providers soportados:
+        - gemini     (Google, API propia)
+        - groq       (OpenAI-compatible, ultrarrápido)
+        - deepseek   (OpenAI-compatible, barato)
+        - openai     (OpenAI-compatible, estándar de facto)
+        - mistral    (OpenAI-compatible, europeo)
+        - anthropic  (API propia, Claude)
+        - ollama     (OpenAI-compatible, local, sin key)
     """
-    # Provider activo: "gemini" | "groq" | "deepseek"
+    # Provider activo
     provider: str = "gemini"
 
-    # API keys (opcionales: solo se valida la del provider activo en runtime)
+    # API keys (solo la del provider activo se valida en runtime)
     gemini_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     deepseek_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    mistral_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    # Ollama no requiere API key (local); solo base_url
+    ollama_base_url: Optional[str] = None
 
     # Timeouts y límites
     timeout_seconds: int = 30
@@ -63,6 +77,11 @@ class AIConfig:
     gemini_model: str = "gemini-2.5-flash"
     groq_model: str = "llama-3.3-70b-versatile"
     deepseek_model: str = "deepseek-chat"
+    openai_model: str = "gpt-4o-mini"
+    mistral_model: str = "mistral-small-latest"
+    anthropic_model: str = "claude-3-5-haiku-latest"
+    ollama_model: str = "llama3.2"
+    ollama_base_url_default: str = "http://localhost:11434/v1"
 
     # Feature flag global: si false, endpoints /ai/* devuelven 503
     enabled: bool = True
@@ -76,6 +95,16 @@ class AIConfig:
             return self.groq_api_key
         if p == "deepseek":
             return self.deepseek_api_key
+        if p == "openai":
+            return self.openai_api_key
+        if p == "mistral":
+            return self.mistral_api_key
+        if p == "anthropic":
+            return self.anthropic_api_key
+        if p == "ollama":
+            # Ollama no requiere key (local); devolvemos un placeholder
+            # para que el BaseOpenAICompatibleProvider no rechace la petición
+            return "ollama-local-no-key-required"
         return None
 
     def get_model_for(self, provider: Optional[str] = None) -> str:
@@ -87,7 +116,19 @@ class AIConfig:
             return self.groq_model
         if p == "deepseek":
             return self.deepseek_model
+        if p == "openai":
+            return self.openai_model
+        if p == "mistral":
+            return self.mistral_model
+        if p == "anthropic":
+            return self.anthropic_model
+        if p == "ollama":
+            return self.ollama_model
         return "unknown"
+
+    def get_ollama_base_url(self) -> str:
+        """Devuelve la base_url de Ollama (con fallback)."""
+        return self.ollama_base_url or self.ollama_base_url_default
 
 
 @dataclass(frozen=True)
@@ -133,18 +174,31 @@ def _env_int(key: str, default: int) -> int:
 def _build_ai_config() -> AIConfig:
     return AIConfig(
         provider=os.getenv("AI_PROVIDER", "gemini").lower(),
+        # API keys
         gemini_api_key=os.getenv("GEMINI_API_KEY"),
         groq_api_key=os.getenv("GROQ_API_KEY"),
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        mistral_api_key=os.getenv("MISTRAL_API_KEY"),
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        ollama_base_url=os.getenv("OLLAMA_BASE_URL"),
+        # Timeouts
         timeout_seconds=_env_int("AI_TIMEOUT_SECONDS", 30),
         max_retries=_env_int("AI_MAX_RETRIES", 2),
+        # Límites
         max_prompt_length=_env_int("AI_MAX_PROMPT_LENGTH", 2000),
         max_bot_context_keys=_env_int("AI_MAX_BOT_CONTEXT_KEYS", 10),
         max_bot_context_value_length=_env_int("AI_MAX_BOT_CONTEXT_VALUE_LENGTH", 500),
         max_tokens_output=_env_int("AI_MAX_TOKENS_OUTPUT", 4000),
+        # Modelos
         gemini_model=os.getenv("AI_GEMINI_MODEL", "gemini-2.5-flash"),
         groq_model=os.getenv("AI_GROQ_MODEL", "llama-3.3-70b-versatile"),
         deepseek_model=os.getenv("AI_DEEPSEEK_MODEL", "deepseek-chat"),
+        openai_model=os.getenv("AI_OPENAI_MODEL", "gpt-4o-mini"),
+        mistral_model=os.getenv("AI_MISTRAL_MODEL", "mistral-small-latest"),
+        anthropic_model=os.getenv("AI_ANTHROPIC_MODEL", "claude-3-5-haiku-latest"),
+        ollama_model=os.getenv("AI_OLLAMA_MODEL", "llama3.2"),
+        ollama_base_url_default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
         enabled=_env_bool("AI_ENABLED", True),
     )
 
