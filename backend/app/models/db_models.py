@@ -358,3 +358,62 @@ class UserAIConfig(Base):
     def __repr__(self):
         return f"<UserAIConfig user={self.user_id} provider={self.provider}>"
 
+
+# ============================================================
+# WORKFLOW TEST (Fase 14.8 — Bot Tester)
+# ============================================================
+
+class WorkflowTest(Base):
+    """
+    Definición de un test del Bot Tester.
+
+    FILOSOFÍA:
+        - Solo persistimos DEFINICIONES de tests.
+        - Los RESULTADOS de ejecución son temporales (no se guardan).
+        - La persistencia completa de runs llegará en 14.13.
+
+    Campos JSON (guardados como TEXT serializado):
+        - input_messages: lista de strings (conversación de entrada)
+        - initial_vars: dict de variables iniciales
+        - assertions: lista de TestAssertion serializadas
+
+    Multi-tenant:
+        - workflow_id (CASCADE desde workflows)
+        - bot_id (CASCADE desde bots) — para ownership rápido
+    """
+    __tablename__ = "workflow_tests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(
+        Integer,
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    bot_id = Column(
+        Integer,
+        ForeignKey("bots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+
+    # JSON serializados
+    input_messages = Column(Text, nullable=False)  # JSON list
+    initial_vars = Column(Text, nullable=True)     # JSON dict (opcional)
+    assertions = Column(Text, nullable=False)      # JSON list
+
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    def __repr__(self):
+        return f"<WorkflowTest {self.id}: '{self.name}' (workflow={self.workflow_id})>"
+

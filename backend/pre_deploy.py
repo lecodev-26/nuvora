@@ -9,8 +9,9 @@ Responsabilidades:
     3. Ejecutar migración 14.3 (Knowledge Engine 2.0)
     4. Ejecutar migración 14.5 (Workflow Engine)
     5. Ejecutar migración 14.7 (BYOK - user_ai_configs)
-    6. NO borra datos. Idempotente.
-    7. NUNCA falla el arranque si las tablas base están OK.
+    6. Ejecutar migración 14.8 (Bot Tester - workflow_tests)
+    7. NO borra datos. Idempotente.
+    8. NUNCA falla el arranque si las tablas base están OK.
 """
 
 import sys
@@ -25,6 +26,7 @@ from app.models.db_models import (
     Source, SourceChunk,
     Workflow, WorkflowNode, WorkflowTransition,
     UserAIConfig,
+    WorkflowTest,
 )
 
 
@@ -103,6 +105,21 @@ def run_migration_14_7():
         print("   (La API arrancará igualmente)")
 
 
+def run_migration_14_8():
+    print("\n" + "=" * 70)
+    print("📦 PASO 6: Migración 14.8 (Bot Tester - workflow_tests)...")
+    print("=" * 70)
+    try:
+        from migrations import migrate_prod_14_8
+        migrate_prod_14_8.run_migration()
+        print("✅ Migración 14.8 completada")
+    except SystemExit:
+        print("⚠️  Migración 14.8 omitida (SQLite o ya migrada)")
+    except Exception as e:
+        print(f"⚠️  Migración 14.8 falló: {e}")
+        print("   (La API arrancará igualmente)")
+
+
 def main():
     print("\n" + "=" * 70)
     print("🚀 PRE-DEPLOY NUVORA")
@@ -123,6 +140,7 @@ def main():
     run_migration_14_3()
     run_migration_14_5()
     run_migration_14_7()
+    run_migration_14_8()
 
     print("\n" + "=" * 70)
     print("🎉 PRE-DEPLOY COMPLETADO")
