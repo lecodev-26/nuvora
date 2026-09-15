@@ -16,9 +16,12 @@ ARQUITECTURA:
                                         ↓
                                     TestRunResult
 
+    WorkflowAnalyzer → Static checks (sin ejecución)
+
 Público:
     - TestRunner (14.8.3)
     - evaluate_assertion, evaluate_all_assertions (14.8.4)
+    - WorkflowAnalyzer (14.8.5)
     - Errores del Tester
 """
 
@@ -37,6 +40,7 @@ from app.core.testing.assertions import (
     summarize_assertions,
 )
 from app.core.testing.runner import TestRunner
+from app.core.testing.analyzer import WorkflowAnalyzer
 
 
 __all__ = [
@@ -46,6 +50,8 @@ __all__ = [
     "evaluate_assertion",
     "evaluate_all_assertions",
     "summarize_assertions",
+    # Analyzer
+    "WorkflowAnalyzer",
     # Errors
     "TestingError",
     "TestNotFoundError",
