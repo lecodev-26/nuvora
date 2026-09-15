@@ -76,7 +76,6 @@ WORKFLOW_JSON_SCHEMA: dict[str, Any] = {
                             "condition: {condition}. "
                             "start/end: {} o null."
                         ),
-                        "additionalProperties": True,
                     },
                 },
                 "required": ["node_id", "type"],
