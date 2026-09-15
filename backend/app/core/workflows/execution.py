@@ -102,6 +102,9 @@ class ExecutionResult:
     current_node_id: Optional[str] = None
     steps_used: int = 0
     error: Optional[str] = None
+    # 14.8.0: ruta completa de nodos visitados (copiada del ExecutionContext).
+    # Reutiliza el history ya existente. NO duplica lógica.
+    history: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serializa para respuesta JSON."""
@@ -112,4 +115,5 @@ class ExecutionResult:
             "current_node_id": self.current_node_id,
             "steps_used": self.steps_used,
             "error": self.error,
+            "history": self.history,
         }

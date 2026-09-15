@@ -193,6 +193,7 @@ class WorkflowEngine:
                     variables=context.variables,
                     current_node_id=current_node_id,
                     steps_used=context.steps,
+                    history=list(context.history),
                 )
 
             if node_result.status == ExecutionStatus.COMPLETED:
@@ -202,6 +203,7 @@ class WorkflowEngine:
                     variables=context.variables,
                     current_node_id=current_node_id,
                     steps_used=context.steps,
+                    history=list(context.history),
                 )
 
             next_id = self._resolve_next_node(
@@ -221,6 +223,7 @@ class WorkflowEngine:
                     variables=context.variables,
                     current_node_id=current_node_id,
                     steps_used=context.steps,
+                    history=list(context.history),
                 )
 
             current_node_id = next_id
