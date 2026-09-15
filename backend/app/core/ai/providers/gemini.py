@@ -152,9 +152,12 @@ class GeminiProvider(AIProvider):
             },
         }
 
-        # Si el caller pasó un JSON schema, lo añadimos
-        if request.json_schema:
-            payload["generationConfig"]["responseSchema"] = request.json_schema
+        # NOTA 14.7.14: NO pasamos responseSchema a Gemini.
+        # Razón: cuando Gemini recibe un schema complejo, "piensa" más tokens
+        # para cumplirlo estrictamente → agota el presupuesto → trunca el JSON.
+        # El prompt conciso ya describe la estructura esperada.
+        # La validación real la hace WorkflowValidator (14.5.4) después.
+        # Con responseMimeType=application/json basta para forzar JSON.
 
         return payload
 
