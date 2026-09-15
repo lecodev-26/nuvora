@@ -57,7 +57,7 @@ class AnthropicProvider(AIProvider):
     # ============================================================
 
     def generate_json(self, request: AIRequest) -> AIResponse:
-        api_key = self._get_api_key()
+        api_key = self.get_api_key()
         if not api_key:
             raise AIProviderError(
                 provider=self.name,
@@ -141,7 +141,9 @@ class AnthropicProvider(AIProvider):
     # HELPERS
     # ============================================================
 
-    def _get_api_key(self) -> str | None:
+    def get_api_key(self) -> str | None:
+        if self.api_key_override:
+            return self.api_key_override
         return settings.ai.anthropic_api_key
 
     def _get_model(self) -> str:

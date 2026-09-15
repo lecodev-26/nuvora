@@ -57,7 +57,7 @@ class BaseOpenAICompatibleProvider(AIProvider):
         """
         Envía el prompt al provider y devuelve la respuesta como JSON parseado.
         """
-        api_key = self.get_api_key()
+        api_key = self._resolve_api_key()
         if not api_key:
             raise AIProviderError(
                 provider=self.name,
@@ -149,6 +149,16 @@ class BaseOpenAICompatibleProvider(AIProvider):
     def get_api_key(self) -> str | None:
         """Devuelve la API key del provider (o None si no está configurada)."""
         ...
+
+    def _resolve_api_key(self) -> str | None:
+        """
+        Resuelve la API key efectiva:
+            1. Si hay api_key_override (BYOK) → se usa esa.
+            2. Si no → se delega en get_api_key() de la subclase.
+        """
+        if self.api_key_override:
+            return self.api_key_override
+        return self.get_api_key()
 
     def get_model(self) -> str:
         """Devuelve el modelo a usar. Se puede sobreescribir."""

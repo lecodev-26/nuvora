@@ -19,6 +19,8 @@ class DeepSeekProvider(BaseOpenAICompatibleProvider):
     base_url = "https://api.deepseek.com/v1"
 
     def get_api_key(self) -> str | None:
+        if self.api_key_override:
+            return self.api_key_override
         return settings.ai.deepseek_api_key
 
     def get_model(self) -> str:

@@ -42,10 +42,26 @@ class AIResponse:
 class AIProvider(ABC):
     """
     Interfaz común de providers.
+
+    Soporta dos modos de funcionamiento:
+        1. Modo sistema (sin api_key_override):
+           El provider lee la key de settings.ai.<provider>_api_key.
+
+        2. Modo BYOK (con api_key_override):
+           El provider usa la key propia del usuario, inyectada por la
+           factory get_provider(db, user_id).
     """
 
     #: Nombre corto del provider (para logs y response)
     name: str = "unknown"
+
+    def __init__(self, api_key_override: Optional[str] = None):
+        """
+        Args:
+            api_key_override: si se pasa, el provider la usará en lugar
+                              de la key del sistema (BYOK).
+        """
+        self.api_key_override = api_key_override
 
     @abstractmethod
     def generate_json(self, request: AIRequest) -> AIResponse:

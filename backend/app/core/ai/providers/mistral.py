@@ -19,6 +19,8 @@ class MistralProvider(BaseOpenAICompatibleProvider):
     base_url = "https://api.mistral.ai/v1"
 
     def get_api_key(self) -> str | None:
+        if self.api_key_override:
+            return self.api_key_override
         return settings.ai.mistral_api_key
 
     def get_model(self) -> str:

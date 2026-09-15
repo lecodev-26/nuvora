@@ -34,7 +34,10 @@ class OllamaProvider(BaseOpenAICompatibleProvider):
         return settings.ai.get_ollama_base_url()
 
     def get_api_key(self) -> str | None:
-        # Ollama no usa key; devolvemos un placeholder para que la base no falle
+        # Ollama no usa key; devolvemos un placeholder para que la base no falle.
+        # Si hay override (BYOK), lo respetamos (aunque Ollama lo ignorará).
+        if self.api_key_override:
+            return self.api_key_override
         return "ollama-local-no-key-required"
 
     def get_model(self) -> str:
