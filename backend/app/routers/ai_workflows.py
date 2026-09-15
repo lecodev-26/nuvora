@@ -1,7 +1,7 @@
 """
-Nuvora — Router /ai/workflows + /ai/templates (Fase 14.7.7)
-==============================================================
-Expone el AIWorkflowDesigner vía HTTP.
+Nuvora — Router /ai/workflows + /ai/templates (Fase 14.7.7 + 14.7.13)
+========================================================================
+Expone el AIWorkflowDesigner vía HTTP con rate limiting.
 
 Endpoints:
     POST   /ai/workflows/generate       → generar workflow desde prompt
@@ -13,6 +13,7 @@ Endpoints:
 
 Reglas:
     - Auth JWT obligatoria en todos los endpoints.
+    - Rate limiting por usuario y endpoint (14.7.13).
     - Mapeo de errores IA → HTTP status coherente.
     - No persiste nada en BD. Solo genera / valida.
 """
@@ -46,6 +47,8 @@ from app.core.ai.errors import (
     AIInvalidOutputError,
     AIConfigError,
 )
+from app.core.ai.rate_limit import check_rate_limit, RateLimitExceeded
+from app.config import settings
 
 
 logger = logging.getLogger(__name__)
@@ -63,31 +66,47 @@ def _handle_ai_error(e: Exception) -> HTTPException:
     Convierte un error de IA en un HTTPException con status coherente.
     """
     if isinstance(e, AIUnavailableError):
-        # Feature flag global deshabilitado
         return HTTPException(status_code=503, detail=str(e))
     if isinstance(e, AIProviderError):
-        # Error del provider externo (red, 5xx, timeout)
         return HTTPException(
             status_code=502,
             detail=f"Error del proveedor de IA: {e.message}",
         )
     if isinstance(e, AIInvalidOutputError):
-        # El provider devolvió algo que no cumple el schema/validator
         return HTTPException(
             status_code=422,
             detail=f"El workflow generado no es válido: {e.message}",
         )
     if isinstance(e, AIConfigError):
-        # Configuración interna (provider inexistente, etc.)
         return HTTPException(
             status_code=500,
             detail=f"Error de configuración de IA: {e}",
         )
     if isinstance(e, AIError):
-        # Cualquier otro AIError genérico
         return HTTPException(status_code=500, detail=f"Error de IA: {e}")
-    # Error inesperado
     return HTTPException(status_code=500, detail="Error inesperado en la capa IA")
+
+
+def _handle_rate_limit(e: RateLimitExceeded) -> HTTPException:
+    """Convierte RateLimitExceeded en HTTPException 429 con Retry-After."""
+    return HTTPException(
+        status_code=429,
+        detail=(
+            f"Has superado el límite de {e.limit} peticiones por hora "
+            f"para esta operación. Reintenta en {e.retry_after} segundos."
+        ),
+        headers={"Retry-After": str(e.retry_after)},
+    )
+
+
+def _check_rate(user_id: int, bucket: str, limit: int) -> None:
+    """
+    Envuelve check_rate_limit convirtiendo la excepción en HTTPException.
+    """
+    try:
+        check_rate_limit(user_id=user_id, bucket=bucket, max_per_hour=limit)
+    except RateLimitExceeded as e:
+        raise _handle_rate_limit(e)
 
 
 # ============================================================
@@ -104,7 +123,16 @@ def generate_workflow(
     Genera un workflow desde una descripción en lenguaje natural.
 
     Retry automático hasta 2 veces si el JSON no pasa el validador.
+    Rate limit: AI_RATE_LIMIT_GENERATE (default 10/hora).
     """
+    # 1. Rate limit ANTES de llamar al provider
+    _check_rate(
+        user_id=current_user.id,
+        bucket="generate",
+        limit=settings.ai.rate_limit_generate,
+    )
+
+    # 2. Ejecutar designer
     try:
         designer = AIWorkflowDesigner(db=db, user_id=current_user.id)
         return designer.generate(
@@ -112,7 +140,10 @@ def generate_workflow(
             bot_context=data.bot_context,
         )
     except Exception as e:
-        logger.warning(f"[ai_workflows.generate] user={current_user.id}: {type(e).__name__}: {e}")
+        logger.warning(
+            f"[ai_workflows.generate] user={current_user.id}: "
+            f"{type(e).__name__}: {e}"
+        )
         raise _handle_ai_error(e)
 
 
@@ -124,8 +155,14 @@ def modify_workflow(
 ):
     """
     Modifica un workflow existente según una instrucción.
-    Preserva los nodos/transiciones no afectados.
+    Rate limit: AI_RATE_LIMIT_MODIFY (default 20/hora).
     """
+    _check_rate(
+        user_id=current_user.id,
+        bucket="modify",
+        limit=settings.ai.rate_limit_modify,
+    )
+
     try:
         designer = AIWorkflowDesigner(db=db, user_id=current_user.id)
         return designer.modify(
@@ -133,7 +170,10 @@ def modify_workflow(
             instruction=data.instruction,
         )
     except Exception as e:
-        logger.warning(f"[ai_workflows.modify] user={current_user.id}: {type(e).__name__}: {e}")
+        logger.warning(
+            f"[ai_workflows.modify] user={current_user.id}: "
+            f"{type(e).__name__}: {e}"
+        )
         raise _handle_ai_error(e)
 
 
@@ -145,12 +185,22 @@ def explain_workflow(
 ):
     """
     Explica un workflow en lenguaje humano.
+    Rate limit: AI_RATE_LIMIT_EXPLAIN (default 30/hora).
     """
+    _check_rate(
+        user_id=current_user.id,
+        bucket="explain",
+        limit=settings.ai.rate_limit_explain,
+    )
+
     try:
         designer = AIWorkflowDesigner(db=db, user_id=current_user.id)
         return designer.explain(workflow=data.workflow)
     except Exception as e:
-        logger.warning(f"[ai_workflows.explain] user={current_user.id}: {type(e).__name__}: {e}")
+        logger.warning(
+            f"[ai_workflows.explain] user={current_user.id}: "
+            f"{type(e).__name__}: {e}"
+        )
         raise _handle_ai_error(e)
 
 
@@ -162,15 +212,22 @@ def analyze_workflow(
 ):
     """
     Analiza un workflow: warnings + sugerencias de mejora.
-
-    NOTA: el análisis es informativo, no autoritativo. El validador
-    estructural real (14.5.4) se ejecuta por separado al guardar.
+    Rate limit: AI_RATE_LIMIT_ANALYZE (default 30/hora).
     """
+    _check_rate(
+        user_id=current_user.id,
+        bucket="analyze",
+        limit=settings.ai.rate_limit_analyze,
+    )
+
     try:
         designer = AIWorkflowDesigner(db=db, user_id=current_user.id)
         return designer.analyze(workflow=data.workflow)
     except Exception as e:
-        logger.warning(f"[ai_workflows.analyze] user={current_user.id}: {type(e).__name__}: {e}")
+        logger.warning(
+            f"[ai_workflows.analyze] user={current_user.id}: "
+            f"{type(e).__name__}: {e}"
+        )
         raise _handle_ai_error(e)
 
 
@@ -184,9 +241,14 @@ def get_templates(
 ):
     """
     Lista las plantillas de workflows predefinidas.
-
     NO usa IA. Es instantáneo y gratis.
+    Rate limit: AI_RATE_LIMIT_TEMPLATES_LIST (default 100/hora).
     """
+    _check_rate(
+        user_id=current_user.id,
+        bucket="templates_list",
+        limit=settings.ai.rate_limit_templates_list,
+    )
     return TemplatesListResponse(templates=list_templates())
 
 
@@ -197,9 +259,15 @@ def instantiate_template(
 ):
     """
     Devuelve el workflow de una plantilla concreta.
-
     NO usa IA. El usuario puede importarlo directamente en el Builder.
+    Rate limit: AI_RATE_LIMIT_TEMPLATES_INSTANTIATE (default 50/hora).
     """
+    _check_rate(
+        user_id=current_user.id,
+        bucket="templates_instantiate",
+        limit=settings.ai.rate_limit_templates_instantiate,
+    )
+
     workflow = get_template_workflow(template_id)
     if not workflow:
         raise HTTPException(

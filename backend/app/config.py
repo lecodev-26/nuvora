@@ -86,6 +86,15 @@ class AIConfig:
     # Feature flag global: si false, endpoints /ai/* devuelven 503
     enabled: bool = True
 
+    # Rate limiting (14.7.13)
+    rate_limit_enabled: bool = True
+    rate_limit_generate: int = 10       # /ai/workflows/generate por hora
+    rate_limit_modify: int = 20         # /ai/workflows/modify por hora
+    rate_limit_explain: int = 30        # /ai/workflows/explain por hora
+    rate_limit_analyze: int = 30        # /ai/workflows/analyze por hora
+    rate_limit_templates_list: int = 100   # GET /ai/templates por hora
+    rate_limit_templates_instantiate: int = 50  # POST /ai/templates/{id}/instantiate por hora
+
     def get_api_key_for(self, provider: Optional[str] = None) -> Optional[str]:
         """Devuelve la API key del provider indicado (o del activo)."""
         p = (provider or self.provider).lower()
@@ -200,6 +209,14 @@ def _build_ai_config() -> AIConfig:
         ollama_model=os.getenv("AI_OLLAMA_MODEL", "llama3.2"),
         ollama_base_url_default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
         enabled=_env_bool("AI_ENABLED", True),
+        # Rate limiting
+        rate_limit_enabled=_env_bool("AI_RATE_LIMIT_ENABLED", True),
+        rate_limit_generate=_env_int("AI_RATE_LIMIT_GENERATE", 10),
+        rate_limit_modify=_env_int("AI_RATE_LIMIT_MODIFY", 20),
+        rate_limit_explain=_env_int("AI_RATE_LIMIT_EXPLAIN", 30),
+        rate_limit_analyze=_env_int("AI_RATE_LIMIT_ANALYZE", 30),
+        rate_limit_templates_list=_env_int("AI_RATE_LIMIT_TEMPLATES_LIST", 100),
+        rate_limit_templates_instantiate=_env_int("AI_RATE_LIMIT_TEMPLATES_INSTANTIATE", 50),
     )
 
 
