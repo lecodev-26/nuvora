@@ -31,6 +31,7 @@ from app.core.ai.schemas import (
     EXPLAIN_RESPONSE_SCHEMA,
     ANALYZE_RESPONSE_SCHEMA,
 )
+from app.core.ai.designer import AIWorkflowDesigner
 
 __all__ = [
     # Provider
@@ -50,4 +51,6 @@ __all__ = [
     "MODIFY_RESPONSE_SCHEMA",
     "EXPLAIN_RESPONSE_SCHEMA",
     "ANALYZE_RESPONSE_SCHEMA",
+    # Designer
+    "AIWorkflowDesigner",
 ]
