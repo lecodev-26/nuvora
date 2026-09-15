@@ -12,14 +12,14 @@ FILOSOFÍA:
 ARQUITECTURA:
     TestRunner → WorkflowEngine (14.5) → ExecutionResult
                                         ↓
-                                    Assertions
+                                    Assertion Engine
                                         ↓
                                     TestRunResult
 
 Público:
-    - TestRunner (en 14.8.3)
-    - Assertions (en 14.8.4)
-    - Analyzer (en 14.8.5)
+    - TestRunner (14.8.3)
+    - evaluate_assertion, evaluate_all_assertions (14.8.4)
+    - Errores del Tester
 """
 
 from app.core.testing.errors import (
@@ -31,9 +31,21 @@ from app.core.testing.errors import (
     TestTimeoutError,
     TestLimitExceededError,
 )
+from app.core.testing.assertions import (
+    evaluate_assertion,
+    evaluate_all_assertions,
+    summarize_assertions,
+)
+from app.core.testing.runner import TestRunner
 
 
 __all__ = [
+    # Runner
+    "TestRunner",
+    # Assertions
+    "evaluate_assertion",
+    "evaluate_all_assertions",
+    "summarize_assertions",
     # Errors
     "TestingError",
     "TestNotFoundError",
