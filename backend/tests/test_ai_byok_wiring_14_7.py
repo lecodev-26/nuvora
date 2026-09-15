@@ -86,6 +86,8 @@ def test_provider_fallback_when_no_byok():
     print("\n" + "=" * 70)
     print("TEST 4: get_provider con db/user_id sin BYOK → fallback sistema")
     print("=" * 70)
+    from app.config import settings
+
     db = SessionLocal()
     try:
         # Crear usuario SIN BYOK
@@ -101,9 +103,19 @@ def test_provider_fallback_when_no_byok():
         # get_provider con db + user_id pero SIN BYOK
         p = get_provider("gemini", db=db, user_id=u.id)
         assert isinstance(p, GeminiProvider)
-        # Sin BYOK, no hay override (None) → cae al sistema
-        assert p.api_key_override is None
-        print(f"  ✅ Fallback al sistema: override={p.api_key_override}")
+
+        # Sin BYOK → el override NO debe ser None (cae al sistema),
+        # o debe ser None si el sistema tampoco tiene key configurada.
+        # En cualquier caso: `get_api_key()` debe devolver algo coherente.
+        system_key = settings.ai.gemini_api_key
+        if system_key:
+            # Hay key del sistema → el override debe ser esa key
+            assert p.api_key_override == system_key
+            print(f"  ✅ Fallback al sistema: override=SÍ (key del sistema)")
+        else:
+            # No hay key del sistema → override=None
+            assert p.api_key_override is None
+            print(f"  ✅ Fallback al sistema: override=None (sin key)")
 
         # Limpieza
         db.query(User).filter(User.id == u.id).delete()

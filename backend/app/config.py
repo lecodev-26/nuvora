@@ -71,10 +71,10 @@ class AIConfig:
     max_bot_context_value_length: int = 500
 
     # Límites de salida
-    max_tokens_output: int = 4000
+    max_tokens_output: int = 8192
 
     # Modelos por defecto por provider (se pueden sobreescribir)
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     groq_model: str = "llama-3.3-70b-versatile"
     deepseek_model: str = "deepseek-chat"
     openai_model: str = "gpt-4o-mini"
@@ -198,9 +198,9 @@ def _build_ai_config() -> AIConfig:
         max_prompt_length=_env_int("AI_MAX_PROMPT_LENGTH", 2000),
         max_bot_context_keys=_env_int("AI_MAX_BOT_CONTEXT_KEYS", 10),
         max_bot_context_value_length=_env_int("AI_MAX_BOT_CONTEXT_VALUE_LENGTH", 500),
-        max_tokens_output=_env_int("AI_MAX_TOKENS_OUTPUT", 4000),
+        max_tokens_output=_env_int("AI_MAX_TOKENS_OUTPUT", 8192),
         # Modelos
-        gemini_model=os.getenv("AI_GEMINI_MODEL", "gemini-2.5-flash"),
+        gemini_model=os.getenv("AI_GEMINI_MODEL", "gemini-3.5-flash-lite"),
         groq_model=os.getenv("AI_GROQ_MODEL", "llama-3.3-70b-versatile"),
         deepseek_model=os.getenv("AI_DEEPSEEK_MODEL", "deepseek-chat"),
         openai_model=os.getenv("AI_OPENAI_MODEL", "gpt-4o-mini"),

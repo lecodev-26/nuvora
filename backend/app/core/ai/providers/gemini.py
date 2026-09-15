@@ -168,6 +168,7 @@ class GeminiProvider(AIProvider):
             )
 
         # Estructura Gemini: candidates[0].content.parts[0].text
+        # (Gemini 3.x añade `thoughtSignature` pero lo ignoramos)
         try:
             candidates = data.get("candidates") or []
             if not candidates:
@@ -178,14 +179,28 @@ class GeminiProvider(AIProvider):
                     raise ValueError(f"Contenido bloqueado por Gemini: {block}")
                 raise ValueError("No hay 'candidates' en la respuesta")
 
-            content = candidates[0].get("content") or {}
+            candidate = candidates[0]
+            finish_reason = candidate.get("finishReason", "")
+
+            content = candidate.get("content") or {}
             parts = content.get("parts") or []
             if not parts:
-                raise ValueError("No hay 'parts' en la respuesta")
+                raise ValueError(
+                    f"No hay 'parts' en la respuesta (finishReason={finish_reason})"
+                )
 
             text = parts[0].get("text")
             if not text:
-                raise ValueError("Texto vacío en la respuesta")
+                raise ValueError(
+                    f"Texto vacío en la respuesta (finishReason={finish_reason})"
+                )
+
+            # Detectar truncado por MAX_TOKENS
+            if finish_reason == "MAX_TOKENS":
+                logger.warning(
+                    f"[gemini] Respuesta truncada por MAX_TOKENS. "
+                    f"Texto parcial: {text[:100]!r}"
+                )
 
         except (KeyError, IndexError, ValueError) as e:
             raise AIInvalidOutputError(
