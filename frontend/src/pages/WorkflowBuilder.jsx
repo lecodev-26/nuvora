@@ -9,6 +9,7 @@ import NodeInspector from '../components/inspector/NodeInspector';
 import TransitionInspector from '../components/inspector/TransitionInspector';
 import NodePalette from '../components/builder/NodePalette';
 import RunPanel from '../components/builder/RunPanel';
+import AIDesignerPanel from '../components/builder/AIDesignerPanel';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import Spinner from '../components/ui/Spinner';
 import Button from '../components/Button';
@@ -64,6 +65,7 @@ const WorkflowBuilder = () => {
   const [saveMessage, setSaveMessage] = useState(null);
   const [showErrorPanel, setShowErrorPanel] = useState(true);
   const [showRunPanel, setShowRunPanel] = useState(false);
+  const [showAIDesigner, setShowAIDesigner] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   // ============================================================
@@ -387,6 +389,63 @@ const WorkflowBuilder = () => {
   };
 
   // ============================================================
+  // AI DESIGNER — cargar workflow generado
+  // ============================================================
+
+  const handleAIGenerated = useCallback((workflow) => {
+    // Mapear nodes del workflow generado al formato del Builder
+    // (necesitan position, que en 14.7 no viene del JSON de IA)
+    const aiNodes = workflow.nodes || [];
+    const aiTransitions = workflow.transitions || [];
+
+    // Distribuir nodos en el canvas (grid)
+    const nodesWithPositions = aiNodes.map((n, idx) => {
+      const col = idx % 3;
+      const row = Math.floor(idx / 3);
+      return {
+        node_id: n.node_id,
+        type: n.type,
+        name: n.name || null,
+        config: n.config || null,
+        position: {
+          x: 100 + col * 280,
+          y: 100 + row * 160,
+        },
+      };
+    });
+
+    const transitionsMapped = aiTransitions.map((t) => ({
+      from_node_id: t.from_node_id,
+      to_node_id: t.to_node_id,
+      condition: t.condition || null,
+      label: t.label || null,
+      order: t.order || 0,
+    }));
+
+    // Cargar en el builder (reemplaza todo)
+    loadSuccess({
+      workflowId: workflowId && workflowId !== 'new' ? parseInt(workflowId) : null,
+      botId: parseInt(botId),
+      metadata: {
+        name: workflow.name || 'Workflow generado con IA',
+        description: workflow.description || '',
+        status: 'draft',
+        trigger: 'manual',
+        entry_node_id: null,
+        meta: {},
+      },
+      nodes: nodesWithPositions,
+      transitions: transitionsMapped,
+    });
+
+    setSaveMessage({
+      type: 'success',
+      text: '✨ Workflow cargado. Revisa y guarda cuando estés listo.',
+    });
+    setTimeout(() => setSaveMessage(null), 4000);
+  }, [botId, workflowId, loadSuccess]);
+
+  // ============================================================
   // ESTADOS DE CARGA
   // ============================================================
 
@@ -501,6 +560,15 @@ const WorkflowBuilder = () => {
               {saveMessage.text}
             </span>
           )}
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowAIDesigner(true)}
+            title="Generar workflow con IA"
+          >
+            ✨ AI
+          </Button>
 
           <Button
             variant="secondary"
@@ -622,6 +690,13 @@ const WorkflowBuilder = () => {
         workflowId={workflowId}
         nodes={nodes}
         dirty={dirty}
+      />
+
+      {/* Modal AI Designer */}
+      <AIDesignerPanel
+        open={showAIDesigner}
+        onClose={() => setShowAIDesigner(false)}
+        onGenerated={handleAIGenerated}
       />
 
       {/* Confirm modal genérico */}
