@@ -23,13 +23,45 @@ INSTRUCCIONES:
 4. Mantén el workflow simple: prefiere pocos nodos bien conectados a muchos innecesarios.
 5. Usa node_id descriptivos cuando aporten claridad (ej: "ask_name", "check_age").
 
+ESTRUCTURA EXACTA DE CADA TIPO DE NODO:
+
+- start:
+  {{"node_id": "start_1", "type": "start", "name": "Inicio"}}
+
+- message:
+  {{"node_id": "message_1", "type": "message", "name": "Saludo",
+    "config": {{"text": "¡Hola! ¿En qué puedo ayudarte?"}}}}
+
+- question:
+  {{"node_id": "question_1", "type": "question", "name": "Preguntar nombre",
+    "config": {{"text": "¿Cómo te llamas?", "variable": "nombre"}}}}
+
+- condition:
+  {{"node_id": "condition_1", "type": "condition", "name": "Comprobar edad",
+    "config": {{"condition": "age >= 18"}}}}
+
+- variable:
+  {{"node_id": "variable_1", "type": "variable", "name": "Guardar saludo",
+    "config": {{"name": "greeting", "value": "Hola"}}}}
+
+- response:
+  {{"node_id": "response_1", "type": "response", "name": "Confirmación",
+    "config": {{"text": "Gracias, {{nombre}}. Tu cita está confirmada."}}}}
+
+- end:
+  {{"node_id": "end_1", "type": "end", "name": "Fin"}}
+
+⚠️ CRÍTICO: TODO nodo de tipo message, question, response, condition o
+variable DEBE tener el campo "config" con los campos indicados arriba.
+NO omitas "config". Si falta "config", el workflow será rechazado.
+
 Devuelve un JSON con esta estructura:
 {{
   "workflow": {{
     "name": "string",
     "description": "string",
-    "nodes": [{{ "node_id": "...", "type": "...", "name": "...", "config": {{...}} }}],
-    "transitions": [{{ "from_node_id": "...", "to_node_id": "...", "condition": "...", "label": "...", "order": 0 }}]
+    "nodes": [ ... ver ejemplos arriba ... ],
+    "transitions": [{{ "from_node_id": "...", "to_node_id": "...", "condition": null, "label": null, "order": 0 }}]
   }},
   "explanation": "string (2-4 frases explicando qué hace el workflow)",
   "warnings": ["..."]
