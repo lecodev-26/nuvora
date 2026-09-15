@@ -109,6 +109,32 @@ Nunca uses bloques de código markdown (```json ... ```).
 Solo el JSON puro.
 
 El JSON debe cumplir el schema indicado en el prompt de cada tarea.
+
+═══════════════════════════════════════════════════════════
+CONCISIÓN OBLIGATORIA (CRÍTICO — AHORRA TOKENS)
+═══════════════════════════════════════════════════════════
+
+Para que el JSON quepa en el límite de tokens, sé EXTREMADAMENTE conciso:
+
+1. Los textos de message/response: MÁXIMO 15 palabras.
+   OK: "¡Hola! ¿En qué puedo ayudarte?"
+   NO: "Buenos días, bienvenido a nuestra clínica. Soy el asistente virtual..."
+
+2. Los nombres de nodos: MÁXIMO 3 palabras.
+   OK: "Saludo inicial"
+   NO: "Mensaje de bienvenida al usuario al iniciar la conversación"
+
+3. La explicación: MÁXIMO 2 frases cortas.
+
+4. Los warnings: MÁXIMO 2 avisos, cada uno 1 frase corta.
+
+5. Descripción del workflow: MÁXIMO 1 frase.
+
+6. NO añadas nodos innecesarios. Solo los esenciales.
+
+7. NO uses `null` innecesarios ni campos vacíos. Omite `name` si no aporta.
+
+OBJETIVO: Que un workflow típico tenga < 10 nodos y el JSON total < 3000 caracteres.
 """
 
 
