@@ -141,6 +141,32 @@ class AIConfig:
 
 
 @dataclass(frozen=True)
+class TestConfig:
+    """
+    Configuración del Bot Tester (Fase 14.8).
+
+    Límites configurables para evitar abusos y ejecuciones infinitas.
+    """
+    # Timeout por test (barrera real, no solo MAX_STEPS del engine)
+    timeout_seconds: int = 30
+
+    # Límites de tamaño por test
+    max_messages_per_test: int = 20
+    max_assertions_per_test: int = 30
+    max_steps_per_test: int = 200
+    max_variables_per_test: int = 50
+
+    # Límites por workflow
+    max_tests_per_workflow: int = 100
+    max_tests_per_run_all: int = 50
+
+    # Límites de longitud de strings
+    max_test_name_length: int = 200
+    max_message_length: int = 1000
+    max_assertion_value_length: int = 500
+
+
+@dataclass(frozen=True)
 class AppConfig:
     """Configuración general de la app (ya existente, centralizada)."""
     name: str = "Nuvora API"
@@ -150,6 +176,7 @@ class AppConfig:
 
     # Sub-configs
     ai: AIConfig = field(default_factory=AIConfig)
+    tests: TestConfig = field(default_factory=TestConfig)
 
 
 # ============================================================
@@ -220,6 +247,21 @@ def _build_ai_config() -> AIConfig:
     )
 
 
+def _build_test_config() -> TestConfig:
+    return TestConfig(
+        timeout_seconds=_env_int("TEST_TIMEOUT_SECONDS", 30),
+        max_messages_per_test=_env_int("TEST_MAX_MESSAGES_PER_TEST", 20),
+        max_assertions_per_test=_env_int("TEST_MAX_ASSERTIONS_PER_TEST", 30),
+        max_steps_per_test=_env_int("TEST_MAX_STEPS_PER_TEST", 200),
+        max_variables_per_test=_env_int("TEST_MAX_VARIABLES_PER_TEST", 50),
+        max_tests_per_workflow=_env_int("TEST_MAX_TESTS_PER_WORKFLOW", 100),
+        max_tests_per_run_all=_env_int("TEST_MAX_TESTS_PER_RUN_ALL", 50),
+        max_test_name_length=_env_int("TEST_MAX_NAME_LENGTH", 200),
+        max_message_length=_env_int("TEST_MAX_MESSAGE_LENGTH", 1000),
+        max_assertion_value_length=_env_int("TEST_MAX_ASSERTION_VALUE_LENGTH", 500),
+    )
+
+
 def _build_app_config() -> AppConfig:
     return AppConfig(
         name=os.getenv("APP_NAME", "Nuvora API"),
@@ -227,6 +269,7 @@ def _build_app_config() -> AppConfig:
         frontend_url=os.getenv("FRONTEND_URL", "https://nuvora-chi.vercel.app"),
         database_url=os.getenv("DATABASE_URL", "sqlite:///./nuvora.db"),
         ai=_build_ai_config(),
+        tests=_build_test_config(),
     )
 
 
@@ -234,4 +277,4 @@ def _build_app_config() -> AppConfig:
 settings = _build_app_config()
 
 
-__all__ = ["settings", "AIConfig", "AppConfig"]
+__all__ = ["settings", "AIConfig", "TestConfig", "AppConfig"]
