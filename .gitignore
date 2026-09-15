@@ -7,3 +7,9 @@ nuvora.db*
 *.db.pre-*
 .vercel
 .env*
+
+# Archivos comprimidos y temporales
+*.zip
+*.tar.gz
+*.rar
+*.7z
