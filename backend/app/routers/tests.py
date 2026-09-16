@@ -40,12 +40,14 @@ from app.models.test import (
     AnalyzeResponse,
     TestAssertion,
     GenerateAITestsResponse,
+    GenerateBasicTestsResponse,
 )
 from app.services.auth import get_current_user
 from app.core.testing import (
     TestRunner,
     WorkflowAnalyzer,
     AITestGenerator,
+    BasicTestGenerator,
     TestNotFoundError,
     TestLimitExceededError,
 )
@@ -526,3 +528,51 @@ def generate_tests_with_ai(
                 status_code=500,
                 detail=f"Error generando tests con IA: {type(e).__name__}",
             )
+
+
+# ============================================================
+# BASIC TEST GENERATOR (14.8.13) — SIN IA
+# ============================================================
+
+@router.post(
+    "/{bot_id}/tests/generate-basic",
+    response_model=GenerateBasicTestsResponse,
+)
+def generate_basic_tests(
+    bot_id: int,
+    workflow_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Genera DEFINICIONES de tests básicos (100% determinista, SIN IA).
+
+    Tipos de tests generados:
+        1. Happy path (reaches_end)
+        2. Nodo visitado (hasta 5 nodos)
+        3. No excede MAX_STEPS
+        4. Sin 'error' en output (si hay message/response)
+
+    NO usa IA. NO gasta tokens. NO llama a ningún provider.
+    NO guarda en BD. El usuario decide si guardarlos.
+
+    Query params:
+        workflow_id: workflow sobre el que generar tests.
+    """
+    bot = _get_bot_or_404(db, bot_id)
+    _verify_bot_ownership(bot, current_user)
+
+    # Rate limit ligero (mismo bucket que analyze, 100/h)
+    _check_test_rate(
+        user_id=current_user.id,
+        bucket="test_analyze",
+        limit=settings.tests.rate_limit_test_analyze,
+    )
+
+    _get_workflow_of_bot(db, bot_id, workflow_id)
+
+    wf = _load_workflow_with_relations(db, workflow_id)
+    wf_dict = _workflow_to_dict(wf)
+
+    generator = BasicTestGenerator()
+    return generator.generate(workflow_data=wf_dict)

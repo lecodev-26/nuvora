@@ -42,6 +42,7 @@ from app.core.testing.assertions import (
 from app.core.testing.runner import TestRunner
 from app.core.testing.analyzer import WorkflowAnalyzer
 from app.core.testing.ai_generator import AITestGenerator
+from app.core.testing.basic_generator import BasicTestGenerator
 
 
 __all__ = [
@@ -55,6 +56,8 @@ __all__ = [
     "WorkflowAnalyzer",
     # AI Generator
     "AITestGenerator",
+    # Basic Generator
+    "BasicTestGenerator",
     # Errors
     "TestingError",
     "TestNotFoundError",
