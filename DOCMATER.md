@@ -366,3 +366,475 @@ Logros:
 Fin de la Parte 1/4.
 
 Dime si te gusta el tono y la estructura, y sigo con la Parte 2/4 — Stack + Arquitectura backend. Cuando tengamos las 4 partes, lo junto todo, lo revisas completo, y lo subimos a Git. 🎯
+
+
+¡Perfecto, colega! 🎯 Mucho mejor así. Tú copias y pegas manualmente en una página, y yo te doy el contenido en continuo, una parte detrás de otra.
+
+Nota importante: como vas a pegar encima de lo anterior (no debajo), no hace falta que te repita el índice ni la portada. Vamos directo a la Parte 2.
+
+---
+
+📖 DOCUMENTO MAESTRO NUVORA
+
+Parte 2/4 — Stack + Arquitectura backend
+
+---
+
+3. STACK TÉCNICO
+
+3.1. Backend
+
+Componente Tecnología
+Framework FastAPI
+Lenguaje Python 3.11
+ORM SQLAlchemy
+Validación Pydantic v2
+BD desarrollo SQLite (nuvora.db)
+BD producción PostgreSQL (Render)
+Auth JWT (python-jose) + passlib (sha256_crypt)
+Migraciones Scripts custom migrate_prod_*.py
+Deploy Render (free tier)
+
+3.2. Frontend
+
+Componente Versión
+React 19.2.8
+React DOM 19.2.8
+React Router 7.18.3
+@xyflow/react (React Flow) 12.11.6
+axios 1.20.0
+Vite 8.2.2
+Vitest 5.0.0
+@testing-library/react 16.3.3
+jsdom 30.0.1
+oxlint 1.79.0
+TailwindCSS (vía clases utilitarias)
+
+3.3. IA
+
+Provider Modelo por defecto Notas
+Gemini gemini-3.5-flash-lite Activo por defecto
+Groq llama-3.3-70b-versatile OpenAI-compatible
+DeepSeek deepseek-chat OpenAI-compatible
+OpenAI gpt-4o-mini Estándar
+Mistral mistral-small-latest Europeo
+Anthropic claude-3-5-haiku-latest Claude
+Ollama llama3.2 Local, sin key
+
+BYOK: cada usuario puede traer su propia API key (se guarda cifrada con Fernet).
+
+3.4. Deploy
+
+Componente Plataforma Plan
+Backend Render Free tier
+Frontend Vercel Hobby (free)
+Repo GitHub lecodev-26/nuvora
+IA Gemini API BYOK + key propia
+
+---
+
+4. ARQUITECTURA BACKEND
+
+4.1. Estructura de backend/
+
+```
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py                    # FastAPI app + routers
+│   ├── config.py                  # Settings centralizadas
+│   ├── core/
+│   │   ├── contracts.py           # ChannelRequest/Response
+│   │   ├── orchestrator.py        # Orchestrator (legacy, RAG)
+│   │   ├── ai/
+│   │   │   ├── rate_limit.py
+│   │   │   ├── prompts/
+│   │   │   └── providers/
+│   │   ├── processors/            # Procesadores de sources
+│   │   ├── testing/               # Bot Tester (14.8)
+│   │   │   ├── ai_generator.py
+│   │   │   ├── analyzer.py
+│   │   │   ├── assertions.py
+│   │   │   ├── basic_generator.py
+│   │   │   ├── errors.py
+│   │   │   └── runner.py
+│   │   ├── training/              # Training Assistant (14.4)
+│   │   └── workflows/             # Workflow Engine (14.5)
+│   │       ├── conditions.py
+│   │       ├── engine.py
+│   │       ├── errors.py
+│   │       ├── execution.py
+│   │       ├── validator.py
+│   │       ├── variables.py
+│   │       └── nodes/
+│   │           ├── base.py
+│   │           ├── condition.py
+│   │           ├── end.py
+│   │           ├── message.py
+│   │           ├── question.py
+│   │           ├── response.py
+│   │           ├── start.py
+│   │           └── variable.py
+│   ├── database/
+│   │   └── config.py              # engine, SessionLocal, Base, get_db
+│   ├── models/
+│   │   ├── ai.py
+│   │   ├── ai_config.py
+│   │   ├── auth.py
+│   │   ├── bot.py                 # Schemas Pydantic Bot
+│   │   ├── db_models.py           # 13 modelos SQLAlchemy
+│   │   ├── source.py
+│   │   ├── test.py
+│   │   ├── training.py
+│   │   └── workflow.py            # Schemas Pydantic Workflow
+│   ├── routers/
+│   │   ├── ai_config.py           # /ai/config (BYOK)
+│   │   ├── ai_workflows.py        # /ai/workflows (Designer)
+│   │   ├── analytics.py
+│   │   ├── ask.py                 # /ask (legacy RAG)
+│   │   ├── auth.py                # /auth
+│   │   ├── bots.py                # /bots
+│   │   ├── categories.py
+│   │   ├── memories.py
+│   │   ├── payments.py
+│   │   ├── sources.py
+│   │   ├── tests.py               # /bots/{bot_id}/tests (14.8)
+│   │   ├── training.py
+│   │   └── workflows.py           # /workflows (14.5)
+│   └── services/
+│       └── auth.py                # JWT, hash, get_current_user
+├── migrations/
+│   ├── migrate_prod_14_1_1.py
+│   ├── migrate_prod_14_3.py
+│   ├── migrate_prod_14_5.py
+│   ├── migrate_prod_14_7.py
+│   └── migrate_prod_14_8.py
+├── tests/                         # 42 ficheros de tests
+├── pre_deploy.py                  # Hook Render: crea tablas + migra
+├── requirements.txt
+└── nuvora.db                      # SQLite local (gitignored)
+```
+
+4.2. Los 13 modelos (db_models.py)
+
+User
+
+```
+id, email (unique), hashed_password, full_name, created_at, is_active (int),
+trial_start, trial_end, service_status (trial|active|expired),
+payment_date, expiration_date, stripe_customer_id
+```
+
+Bot (corazón del sistema)
+
+```
+id, user_id (FK users), name, description,
+business_name, business_type, nicho_id (default "otro"),
+restaurant_name (legacy), owner_email (legacy),
+goal, instructions, personality, tone,
+greeting, fallback_message, answer_mode ("strict"|"flexible"),
+is_published (bool, default False),
+is_active (bool, default True),
+plan ("free"),
+created_at, updated_at
+```
+
+MemoryCategory
+
+```
+id, bot_id (FK), name, description, icon, order, created_at
+```
+
+Memory
+
+```
+id, bot_id (FK), category_id (FK nullable),
+fact, keyword, source ("manual"|"suggested"|"imported"),
+is_confirmed, created_at
+```
+
+Conversation (analytics, NO chat)
+
+```
+id, bot_id (FK), channel ("widget"),
+session_id (nullable, indexed),
+question, answer, was_answered,
+workflow_id (int, sin FK),
+meta (JSON), created_at
+```
+
+Source
+
+```
+id, bot_id (FK, CASCADE), user_id (FK, CASCADE),
+type ("text"|"url"|"pdf"|"csv"),
+title, origin, content_raw, content_processed,
+status ("pending"|"processing"|"ready"|"error"),
+error_message, chunks_count, size_bytes, meta,
+created_at, processed_at
+```
+
+SourceChunk
+
+```
+id, source_id (FK, CASCADE), bot_id (FK, CASCADE),
+chunk_index, content, section, page,
+char_start, char_end, tokens_estimate, meta, created_at
+```
+
+Workflow
+
+```
+id, bot_id (FK, CASCADE), name, description,
+status ("draft"|"active"|"archived"),  ← FUENTE DE VERDAD del workflow activo
+version (int, default 1), trigger, entry_node_id, meta (JSON),
+created_at, updated_at
+```
+
+WorkflowNode
+
+```
+id, workflow_id (FK, CASCADE), node_id (lógico, único por workflow),
+type ("start"|"message"|"question"|"condition"|"variable"|"response"|"end"),
+name, config (JSON serializado), created_at
+UniqueConstraint(workflow_id, node_id)
+```
+
+WorkflowTransition
+
+```
+id, workflow_id (FK, CASCADE),
+from_node_id, to_node_id,
+condition (expresión opcional), label, order,
+created_at
+```
+
+UserAIConfig (BYOK)
+
+```
+id, user_id (FK, CASCADE), provider (gemini|groq|deepseek|openai|mistral|anthropic),
+api_key_encrypted (Fernet),
+created_at, updated_at
+UniqueConstraint(user_id, provider)
+```
+
+WorkflowTest (14.8)
+
+```
+id, workflow_id (FK, CASCADE), bot_id (FK, CASCADE),
+name, description,
+input_messages (TEXT JSON list),
+initial_vars (TEXT JSON dict, nullable),
+assertions (TEXT JSON list),
+enabled (bool, default True),
+created_at, updated_at
+```
+
+4.3. Workflow Engine (14.5)
+
+Ubicación: app/core/workflows/engine.py
+Clase: WorkflowEngine
+Firma:
+
+```python
+def run(
+    self,
+    workflow_data: dict,
+    bot_id: int = 0,
+    workflow_id: int = 0,
+    initial_variables: Optional[dict] = None,
+    max_steps: int = 100,
+    start_node_id: Optional[str] = None,
+) -> ExecutionResult
+```
+
+Responsabilidades:
+
+· Validar el workflow (delegando en WorkflowValidator)
+· Indexar nodos por node_id
+· Encontrar el nodo START (o usar start_node_id)
+· Bucle: ejecutar nodo → resolver transición → siguiente nodo
+· Protección MAX_STEPS (default 100)
+· Manejar WAITING_INPUT (nodo QUESTION)
+· Manejar COMPLETED (nodo END)
+· Devolver ExecutionResult
+
+Lo que NO hace:
+
+· ❌ NO persiste ejecuciones (eso será 14.13)
+· ❌ NO conoce el frontend
+· ❌ NO usa IA
+· ❌ NO sabe de canales externos
+
+Resolución de transiciones:
+
+1. Si el nodo devuelve next_node_id → usarlo
+2. Si es CONDITION → evaluar cada transición saliente en orden order hasta que una devuelva True
+3. Si es otro tipo → primera transición saliente ordenada por order
+
+Nodos soportados (7):
+
+Tipo Función
+start Punto de entrada único
+message Envía mensaje al usuario
+question Envía mensaje + espera input (WAITING_INPUT) + guarda variable
+condition Bifurca según expresión (≥2 transiciones)
+variable Asigna valor a variable
+response Envía respuesta final (con interpolación {{var}})
+end Termina la ejecución (0 transiciones salientes)
+
+Estructuras de ejecución:
+
+· ExecutionContext: estado en memoria (bot_id, workflow_id, variables, steps, history)
+· NodeResult: output, next_node_id, variables_update, status
+· ExecutionResult: status, outputs, variables, current_node_id, steps_used, error, history
+· ExecutionStatus: RUNNING, WAITING_INPUT, COMPLETED, FAILED
+
+4.4. Workflow Validator (14.5.4)
+
+9 reglas de validación:
+
+1. Exactamente un nodo START
+2. Al menos un nodo END
+3. node_id únicos
+4. Transiciones apuntan a nodos existentes
+5. Tipos de nodo válidos
+6. Config válida por tipo (message → text, question → text + variable, etc.)
+7. CONDITION tiene ≥2 transiciones salientes
+8. END sin transiciones salientes
+9. START sin transiciones entrantes
+
+NO valida ciclos (pueden ser válidos). La protección real contra bucles es MAX_STEPS.
+
+4.5. Bot Tester (14.8)
+
+Ubicación: app/core/testing/
+
+Componentes:
+
+Fichero Función
+runner.py Ejecuta tests contra WorkflowEngine
+assertions.py Motor de aserciones
+analyzer.py Static Workflow Analyzer
+ai_generator.py Genera tests con IA
+basic_generator.py Genera tests sin IA (deterministas)
+errors.py Excepciones
+
+Tipos de assertions:
+
+· response_contains / response_equals / response_not_contains
+· node_visited / node_not_visited
+· variable_equals / variable_exists / variable_not_exists
+· reaches_end
+· max_steps
+
+Static Analyzer detecta:
+
+· Nodos huérfanos (no alcanzables desde START)
+· Nodos sin transición de salida
+· END sin entrada
+· CONDITION con <2 transiciones
+· Caminos sin END
+· Variables no definidas
+· Etc.
+
+4.6. Rate Limiting
+
+Fichero: app/core/ai/rate_limit.py
+Funciones: check_rate_limit(user_id, bucket, max_per_hour), get_remaining(...)
+Excepción: RateLimitExceeded
+Toggle: settings.ai.rate_limit_enabled
+
+Buckets AI (14.7.13):
+
+Bucket Límite/hora
+generate 10
+modify 20
+explain 30
+analyze 30
+templates_list 100
+templates_instantiate 50
+
+Buckets Bot Tester (14.8.8):
+
+Bucket Límite/hora
+test_run 60
+test_run_all 20
+test_analyze 100
+
+Mecanismo: in-memory (dict por usuario + bucket). Redis → futuro.
+
+4.7. Config centralizada (config.py)
+
+Singleton: settings = _build_app_config()
+
+Estructura:
+
+```
+settings
+├── name, version, frontend_url, database_url
+├── ai: AIConfig
+│   ├── provider, gemini_api_key, groq_api_key, ...
+│   ├── timeout_seconds, max_retries
+│   ├── max_prompt_length, max_tokens_output
+│   ├── rate_limit_* (6 buckets)
+│   └── get_api_key_for(provider), get_model_for(provider)
+└── tests: TestConfig
+    ├── timeout_seconds, max_messages_per_test, max_assertions_per_test
+    ├── max_steps_per_test, max_variables_per_test
+    ├── max_tests_per_workflow, max_tests_per_run_all
+    └── rate_limit_test_* (3 buckets)
+```
+
+Todas las variables se leen de .env con fallbacks. Nada hardcoded.
+
+4.8. Migraciones
+
+Patrón: scripts idempotentes que se ejecutan en pre_deploy.py de Render.
+
+Ficheros:
+
+· migrate_prod_14_1_1.py — Core Universal
+· migrate_prod_14_3.py — Knowledge Engine 2.0
+· migrate_prod_14_5.py — Workflow Engine
+· migrate_prod_14_7.py — BYOK (user_ai_configs)
+· migrate_prod_14_8.py — Bot Tester (workflow_tests)
+
+pre_deploy.py (patrón):
+
+1. Base.metadata.create_all() (todas las tablas)
+2. Ejecuta migraciones en orden (14.1.1, 14.3, 14.5, 14.7, 14.8)
+3. Idempotente: no falla si ya está migrado
+4. No borra datos
+5. Nunca bloquea el arranque si las tablas base están OK
+
+4.9. Auth JWT (services/auth.py)
+
+· SECRET_KEY: hardcoded (a mejorar)
+· ALGORITHM: HS256
+· ACCESS_TOKEN_EXPIRE_MINUTES: 30
+· Hash: sha256_crypt (bcrypt dio problemas en Termux)
+· OAuth2PasswordBearer: tokenUrl /auth/login
+· get_current_user: dependencia FastAPI, valida JWT y devuelve User
+
+4.10. Los dos mundos del backend
+
+MUNDO 1 — Legacy (RAG/memoria, 14.3-14.4):
+
+· /ask/public y /ask/ → usan Orchestrator → busca en Memory + Source → responde
+· Guarda cada Q&A en Conversation (analytics)
+· Se mantiene pero NO se usa para bots publicados en 14.9
+
+MUNDO 2 — Workflows (14.5+):
+
+· /workflows/{bot_id}/{wf_id}/run → usa WorkflowEngine
+· /bots/{bot_id}/tests/* (14.8) → usan WorkflowEngine vía runner.py
+· /public/bots/{public_id}/* (14.9) → usarán WorkflowEngine
+
+Regla de oro: el bot publicado (14.9) SIEMPRE va por el MUNDO 2 (WorkflowEngine). Cero duplicación.
+
+---
+
+Fin de la Parte 2/4.
+
+Dime si te gusta y sigo con la Parte 3/4 — Arquitectura frontend + Widget + Endpoints + Tests + Deploy. 🎯
