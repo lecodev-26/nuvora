@@ -64,6 +64,18 @@ class Bot(Base):
     is_active = Column(Boolean, default=True)
     plan = Column(String(20), default="free")
 
+    # ============================================================
+    # PUBLICACIÓN (Fase 14.9 — Publicación Universal)
+    # ============================================================
+    # public_id:    UUID v4, identidad técnica estable (inmutable)
+    # public_slug:  URL humana opcional (ej: "clinica-salud")
+    # published_at: timestamp de la última publicación
+    # public_config: JSON con config visual/textos (NO workflow, NO prompts)
+    public_id = Column(String(36), unique=True, nullable=True, index=True)
+    public_slug = Column(String(100), unique=True, nullable=True, index=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    public_config = Column(Text, nullable=True)  # JSON serializado
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -417,3 +429,51 @@ class WorkflowTest(Base):
     def __repr__(self):
         return f"<WorkflowTest {self.id}: '{self.name}' (workflow={self.workflow_id})>"
 
+
+# ============================================================
+# PUBLIC SESSION (Fase 14.9 — Publicación Universal)
+# ============================================================
+
+class PublicSession(Base):
+    """
+    Sesión anónima de un visitante conversando con un bot publicado.
+
+    FILOSOFÍA:
+        - Sesiones temporales (expiran en 1h por defecto).
+        - NO reemplaza a `conversations` (esa es analytics).
+        - Solo guarda el CONTEXTO mínimo de la conversación pública.
+        - Persistencia avanzada / sandbox → 14.13.
+
+    Identificadores:
+        - `public_id`: UUID único global de la sesión (no enumerable).
+        - `bot_id`: FK al bot (para aislamiento multi-tenant rápido).
+        - `session_data`: JSON con [{role, content, ts}, ...].
+        - `status`: active | expired | closed.
+
+    Aislamiento:
+        Cada mensaje verifica: session.public_id → session.bot_id → bot.public_id
+    """
+    __tablename__ = "public_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(String(64), unique=True, nullable=False, index=True)
+    bot_id = Column(
+        Integer,
+        ForeignKey("bots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    session_data = Column(Text, nullable=True)  # JSON list de mensajes
+    status = Column(String(20), default="active", nullable=False)  # active | expired | closed
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    def __repr__(self):
+        return f"<PublicSession {self.public_id} (bot={self.bot_id}, status={self.status})>"

@@ -120,6 +120,21 @@ def run_migration_14_8():
         print("   (La API arrancará igualmente)")
 
 
+def run_migration_14_9():
+    print("\n" + "=" * 70)
+    print("📦 PASO 7: Migración 14.9 (Publicación Universal - public_sessions)...")
+    print("=" * 70)
+    try:
+        from migrations import migrate_prod_14_9
+        migrate_prod_14_9.run_migration()
+        print("✅ Migración 14.9 completada")
+    except SystemExit:
+        print("⚠️  Migración 14.9 omitida (SQLite o ya migrada)")
+    except Exception as e:
+        print(f"⚠️  Migración 14.9 falló: {e}")
+        print("   (La API arrancará igualmente)")
+
+
 def main():
     print("\n" + "=" * 70)
     print("🚀 PRE-DEPLOY NUVORA")
@@ -141,6 +156,7 @@ def main():
     run_migration_14_5()
     run_migration_14_7()
     run_migration_14_8()
+    run_migration_14_9()
 
     print("\n" + "=" * 70)
     print("🎉 PRE-DEPLOY COMPLETADO")
