@@ -1518,3 +1518,556 @@ Frontend:
 Fin de la Parte 3/4.
 
 Dime si te gusta y sigo con la Parte 4/4 — Estado producción + Diseño 14.9 + Roadmap + Convenciones + Notas de reconstrucción. 🎯
+
+¡Perfecto, colega! Aquí va la Parte 4/4, la última. 🎯
+
+---
+
+📖 DOCUMENTO MAESTRO NUVORA
+
+Parte 4/4 — Estado prod + Diseño 14.9 + Roadmap + Convenciones + Notas
+
+---
+
+11. ESTADO ACTUAL PRODUCCIÓN
+
+11.1. Backend
+
+Campo Valor
+URL https://nuvora-api-1hql.onrender.com
+Health {"status":"ok","service":"Nuvora","version":"0.1.0"}
+Deploy ID dep-dal7j0gae00c73fr5vmg
+Servicio srv-dagjljmq1p3s73bjf2jg
+Estado ✅ live
+Rutas /tests 7
+Rate limiting ✅ Activo (in-memory)
+
+11.2. Frontend
+
+Campo Valor
+URL pública https://nuvora-chi.vercel.app
+Commit desplegado 84dd321 (main)
+Bundle /assets/index-Dpr4m7b4.js
+Backend embebido https://nuvora-api-1hql.onrender.com
+Estado ✅ Ready
+
+11.3. Verificación end-to-end (16 sep 2026)
+
+Backend — Seguridad:
+
+· ✅ Sin token → 401
+· ✅ Otro usuario → 403
+· ✅ Bot inexistente → 404
+
+Backend — Funcionalidad:
+
+· ✅ generate-basic genera tests (Happy path + Visita nodos)
+· ✅ CRUD completo (create, get, update, delete)
+· ✅ run → status:"passed", 3 nodos visitados (s1, m1, e1)
+· ✅ run-all con estructura correcta
+· ✅ analyze sin errores
+
+Frontend:
+
+· ✅ HTML carga (Vite + React)
+· ✅ <div id="root"> presente
+· ✅ Bundle contiene run-all, nuvora-api, onrender.com
+· ✅ URL backend correcta embebida
+
+11.4. Tests en verde
+
+Suite Total
+Backend collectados 630
+Backend fase 14.8 142 ✅
+Frontend total 107 ✅
+Frontend fase 14.8.14 72 ✅
+
+11.5. Pendientes conocidos
+
+# Pendiente Prioridad Fase
+1 Rate limiting verificado con 429 real Media 14.9
+2 Dominio custom para frontend Baja futuro
+3 CORS abierto para /public/* (widget) Alta 14.9
+4 Servir /widget.js desde backend Alta 14.9
+5 Bloquear is_published en PATCH /bots/{id} Alta 14.9
+6 Fix datetime.utcnow() deprecation Baja futuro
+7 Tests E2E Playwright Media 14.9
+8 Migrar SECRET_KEY a env var Media futuro
+
+---
+
+12. DISEÑO 14.9 — PUBLICACIÓN UNIVERSAL
+
+12.1. Objetivo
+
+Convertir un bot en algo publicable y consumible externamente, sin que el visitante entre al panel.
+
+Ciclo que se cierra:
+
+```
+crear bot → entrenar → diseñar workflow → IA → testear → PUBLICAR
+```
+
+12.2. Principios (8 reglas del autor)
+
+1. public_id = identidad técnica estable (UUID v4)
+2. public_slug = URL humana opcional (/b/clinica-salud); public_id manda como fallback
+3. public_config = solo visual/textos. CERO workflow_id, provider, system_prompt
+4. Sesión blindada: public_id → session_id → bot_id verificados en cada mensaje. Nunca confiar en session_id del cliente solo
+5. public_sessions = contexto mínimo. NO analytics, NO historial (eso es 14.13)
+6. Widget = refactor quirúrgico, no reescritura
+7. WorkflowEngine 14.5 = único motor. El bot público es "otra puerta de entrada", no un segundo motor
+8. E2E real en producción obligatorio antes de cerrar 14.9
+
+12.3. Modelo de datos
+
+Añadir a bots:
+
+```sql
+public_id       VARCHAR(36)  UNIQUE, INDEX, NULLABLE
+public_slug     VARCHAR(100) UNIQUE, NULLABLE
+published_at    DATETIME     NULLABLE
+public_config   TEXT (JSON)  NULLABLE
+```
+
+public_config (JSON):
+
+```json
+{
+  "welcome_message": "Hola 👋 ¿En qué puedo ayudarte?",
+  "placeholder": "Escribe un mensaje...",
+  "avatar_url": null,
+  "primary_color": "#7B5CFF",
+  "show_branding": true
+}
+```
+
+Nueva tabla public_sessions:
+
+```sql
+id              INT PK
+public_id       VARCHAR(64) UNIQUE, INDEX
+bot_id          INT FK → bots.id CASCADE
+session_data    TEXT (JSON)
+status          VARCHAR(20)  -- active | expired | closed
+created_at, updated_at, expires_at
+```
+
+Fuente de verdad del workflow activo: Workflow.status == "active".
+
+12.4. Endpoints
+
+Privados (JWT):
+
+· POST /bots/{bot_id}/publish
+· POST /bots/{bot_id}/unpublish
+· GET /bots/{bot_id}/publication
+· PUT /bots/{bot_id}/publication
+
+Públicos (sin JWT):
+
+· GET /public/bots/{public_id}
+· POST /public/bots/{public_id}/session
+· POST /public/bots/{public_id}/message
+· DELETE /public/bots/{public_id}/session
+
+Deprecados (mantener vivos):
+
+· POST /ask/public → marcar DEPRECATED
+· GET /bots/{id}/public → marcar DEPRECATED
+
+12.5. Flujo de publicación
+
+```
+Builder → 🚀 Publicar
+    ↓
+POST /bots/{bot_id}/publish
+    ↓
+1. Ownership check
+2. Workflow activo existe?
+3. WorkflowValidator.passes()?
+    ↓ SÍ
+4. Generar public_id (UUID v4)
+5. (Opcional) generar public_slug
+6. published_at = now(), is_published = True
+    ↓
+Devuelve URL pública: nuvora-chi.vercel.app/b/{slug}
+```
+
+12.6. Flujo público
+
+```
+Visitante → GET /public/bots/{public_id}
+              ↓
+         POST /public/bots/{public_id}/session
+              ↓
+         POST /public/bots/{public_id}/message
+              ↓
+1. Valida public_id + is_published
+2. Carga bot + workflow status="active"
+3. Recupera PublicSession
+4. WorkflowEngine.run()
+5. Guarda mensaje en sesión
+6. Devuelve { reply, session_id }
+              ↓
+Widget o página pública renderiza
+```
+
+12.7. Seguridad
+
+Capa Mecanismo
+Identificación bot public_id (UUID v4, no enumerable)
+Identificación sesión session_id (UUID v4, server-side)
+Aislamiento Sesión ligada a 1 bot_id
+Datos expuestos Solo reply + metadatos públicos
+Nunca expone workflow, nodes, variables internas, API keys, owner, BD IDs, system prompts
+Timeout MAX_STEPS=50 (WorkflowEngine ya lo enforce)
+Rate limiting Por IP + public_id + session_id
+
+12.8. Límites y abuse protection
+
+Constante Valor
+MAX_MESSAGE_LENGTH 2000 chars
+MAX_SESSION_MESSAGES 50
+MAX_PUBLIC_SESSIONS_PER_BOT 1000
+SESSION_TTL 1 hora
+PUBLIC_RATE_LIMIT_PER_IP 30 msg/hora
+PUBLIC_RATE_LIMIT_PER_SESSION 60 msg/hora
+PUBLIC_TIMEOUT_SECONDS 30s
+
+12.9. Refactor del widget (quirúrgico)
+
+Antes:
+
+```html
+<script src="widget.js" data-bot-id="9"></script>
+```
+
+→ GET /bots/9/public + POST /ask/public + sessionStorage
+
+Después:
+
+```html
+<script src="widget.js" data-bot-public-id="abc-123-uuid"></script>
+```
+
+→ GET /public/bots/{public_id} + /session + /message + sesión server-side
+
+Lo que se mantiene: DOM, estilos, UX, quick questions, logo.
+Lo que se elimina: NICHOS hardcoded del widget (vienen del servidor).
+NO contiene API keys (verificado).
+
+12.10. Frontend 14.9
+
+Nuevas páginas/componentes:
+
+· src/pages/PublicBot.jsx — página pública /b/:slug
+· src/components/public/PublicChat.jsx
+· src/components/public/PublicHeader.jsx
+· src/components/public/PublicFooter.jsx
+
+Integración en Builder:
+
+· Botón 🚀 Publicar (o 🟢 Publicado)
+· Panel con: URL pública, [Copiar], [Ver bot], [Editar config], [Despublicar]
+
+Routing:
+
+```jsx
+<Route path="/b/:identifier" element={<PublicBot />} />
+```
+
+12.11. Subfases 14.9.1 → 14.9.15
+
+# Subfase Trabajo
+14.9.1 Auditoría + arquitectura ✅ Completado (este documento)
+14.9.2 Modelo + migración bots.public_* + public_sessions + migrate_prod_14_9.py
+14.9.3 Schemas Pydantic Publish req/res, PublicBotInfo, SessionReq/Res, MessageReq/Res
+14.9.4 Generador public_id/slug UUID v4 + slugify con unicidad
+14.9.5 Endpoints privados publish, unpublish, get/put publication
+14.9.6 Public Workflow Resolver Cargar bot + wf status="active"
+14.9.7 Public Session service create/get/expire/close + límites
+14.9.8 Endpoint público /message Integración WorkflowEngine + persistencia
+14.9.9 Rate limiting público IP + session + límites globales
+14.9.10 Página pública PublicBot.jsx + PublicChat + PublicHeader
+14.9.11 Integración Builder Botón 🚀 Publicar + panel estado
+14.9.12 Widget refactor data-bot-public-id + endpoints nuevos
+14.9.13 Seguridad + abuse Tests enumeración, payload, timeout, rate
+14.9.14 Tests backend + frontend + E2E Cobertura completa
+14.9.15 Deploy + verificación prod + cierre Render + Vercel + verificación e2e
+
+12.12. Ajustes técnicos para 14.9
+
+1. CORS público:
+En main.py, abrir CORS solo para /public/* con allow_origins=["*"] y allow_credentials=False.
+
+2. Bloquear is_published en BotUpdate:
+Quitar is_published de BotUpdate (schema) para evitar publicar por canal lateral.
+
+3. Servir widget.js:
+Decidir entre servir desde backend (StaticFiles) o apuntar el snippet a Vercel.
+
+4. Rate limiting público:
+Nuevos buckets en settings.public.rate_limit_*.
+
+12.13. Lo que NO se hace en 14.9
+
+❌ API pública (14.10)
+❌ Telegram (14.11)
+❌ Multi-creator (14.12)
+❌ Versiones/Sandbox (14.13)
+❌ Analytics 2.0 (14.14)
+❌ Migrar /ask/public (queda legacy)
+❌ Tocar Orchestrator (sigue para bots clásicos)
+❌ Tocar conversations (sigue para analytics)
+❌ Rehacer widget desde cero (refactor quirúrgico)
+❌ Memoria persistente de sesión
+❌ Registro obligatorio del visitante
+❌ Constructor visual de temas
+
+12.14. E2E obligatorio para cerrar 14.9
+
+```
+CREAR BOT → CREAR WORKFLOW → VALIDAR → PUBLICAR
+    → ABRIR URL SIN LOGIN → CREAR SESIÓN → "HOLA"
+    → WORKFLOW ENGINE → RESPUESTA → SEGUNDO MENSAJE
+    → CONTEXTO CORRECTO → DESPUBLICAR → URL BLOQUEADA
+```
+
+Si esto funciona en producción, 14.9 está hecha de verdad.
+
+12.15. La visión final de 14.9
+
+```
+NUVORA
+  │
+  ▼
+Crear BOT
+  │
+  ▼
+Workflow
+  │
+  ▼
+🧪 Tester (14.8)
+  │
+  ▼
+🚀 PUBLICAR (14.9)
+  │
+  ├──→ ENLACE PÚBLICO ──→ /b/clinica-salud
+  │
+  └──→ WIDGET ──→ <script data-bot-public-id="...">
+                       │
+                       ▼
+                  Cualquier web
+                       │
+                       ▼
+             WorkflowEngine (14.5)
+                       │
+                       ▼
+                  RESPUESTA
+```
+
+Una sola puerta al engine. Cero duplicación.
+
+---
+
+13. ROADMAP
+
+Fases completadas
+
+Fase Descripción Estado
+14.0 MVP + auth + Stripe + Analytics + nichos ✅
+14.1 Core Universal (Bot, Memory, MemoryCategory, multi-tenant) ✅
+14.3 Knowledge Engine 2.0 (Sources, Chunks, TF-IDF, Hybrid Retriever) ✅
+14.4 Training Assistant (analyzer, coverage, unanswered, recommendations, UI) ✅
+14.5 Workflow Engine (7 tipos de nodos, condiciones, interpolación, validator) ✅
+14.6 Visual Workflow Builder (React Flow, inspector, undo/redo, save/load) ✅
+14.7 AI Workflow Designer (multi-provider IA, BYOK, prompts) ✅
+14.8 Bot Tester (runner, analyzer, AI generator, basic generator, UI) ✅
+14.9 Publicación Universal ⏳ PRÓXIMA
+
+Fases futuras
+
+Fase Descripción
+14.10 API Nuvora (endpoints públicos documentados + API keys de usuarios)
+14.11 Integración Telegram
+14.12 Creator Mode (multi-tenant + delegación)
+14.13 Versiones + Sandbox + Persistencia de ejecuciones
+14.14 Analytics 2.0 (funnels, conversiones, cohortes)
+14.15 Autopilot (auto-mejora con IA)
+14.16 Creator / Agency (panel multi-cliente)
+14.17 Marketplace (plantillas compartidas)
+15 IA avanzada / servicios de pago
+🔥 Frontend comercial / pulido final
+🔥 Clientes reales
+
+---
+
+14. CONVENCIONES DEL PROYECTO
+
+14.1. Cómo se trabaja
+
+1. Diseño maestro primero (contrato claro antes de codear)
+2. Auditoría del código real antes de cada fase (no asumir)
+3. Fases numeradas (14.x.y) con commits descriptivos
+4. Tests antes/después de cada subfase
+5. Deploy automático tras push a main
+6. Verificación en producción antes de cerrar cada fase
+
+14.2. Formato de commits
+
+```
+tipo(14.x.y): descripción corta
+
+- detalle 1
+- detalle 2
+```
+
+Tipos: feat, fix, test, chore, debug, docs
+
+14.3. Convenciones de código
+
+Backend:
+
+· FastAPI + Pydantic v2
+· SQLAlchemy ORM
+· JSON en TEXT (compatible SQLite ↔ PostgreSQL)
+· Helper _parse_json_string para TEXT → dict
+· Ownership siempre verificado (compatibilidad user_id + owner_email)
+· 401 sin auth, 403 bot ajeno, 404 inexistente
+
+Frontend:
+
+· React 19 + Vite
+· axios con interceptores (401 → redirect login)
+· TailwindCSS (clases utilitarias)
+· Componentes reutilizables (Button, Card, Input, ConfirmModal, Spinner)
+· Tests con Vitest + Testing Library
+
+Widget:
+
+· Vanilla JS (sin dependencias)
+· Inyección directa en document.body
+· Estilos inline en <style>
+· Sin API keys embebidas
+
+14.4. Entornos
+
+Local (Termux):
+
+· Python venv en ~/nuvora/backend/venv/
+· Node modules en ~/nuvora/frontend/node_modules/
+· SQLite en ~/nuvora/backend/nuvora.db (gitignored)
+· Alias útiles: rdeploy (deploy a Render)
+
+Producción:
+
+· Render (backend) → PostgreSQL
+· Vercel (frontend)
+
+14.5. Cómo verificar producción
+
+Backend:
+
+```bash
+source ~/.prod_tester.sh
+curl -s $PROD_URL/health
+curl -s "$PROD_URL/openapi.json" | python3 -c "..."
+```
+
+Frontend:
+
+```bash
+FE="https://nuvora-chi.vercel.app"
+curl -sL "$FE" | head -c 400
+```
+
+14.6. Variables de entorno clave
+
+Backend (.env):
+
+· DATABASE_URL
+· AI_PROVIDER, GEMINI_API_KEY, GROQ_API_KEY, ...
+· AI_ENABLED, AI_RATE_LIMIT_*
+· TEST_RATE_LIMIT_*
+· FRONTEND_URL
+
+Frontend (Vercel):
+
+· VITE_API_URL
+
+14.7. Estructura de trabajo con IA
+
+· El autor trabaja con DeepSeek (esta IA) para diseño, código, debugging
+· Regla de oro: la IA no ejecuta código, solo propone bloques copy-paste
+· El autor ejecuta en Termux (móvil)
+· La IA nunca inventa contexto — si no tiene algo, lo pide
+· La IA no toca código sin OK explícito del autor
+
+---
+
+15. NOTAS DE RECONSTRUCCIÓN
+
+Este documento se ha elaborado el 16 de septiembre de 2026 a partir de:
+
+· ✅ Commits reales de la repo (git log --all) — 109 commits desde el 9 sep
+· ✅ Código real leído del filesystem (backend, frontend, widget)
+· ✅ Tests reales ejecutados (pytest + vitest)
+· ✅ Producción real verificada (Render + Vercel)
+· ✅ Diseño 14.9 proporcionado por el autor
+
+Lo que es 100% verificado
+
+· Historia de commits (hash, fecha, mensaje exactos)
+· Estructura de ficheros (find real)
+· Modelos de datos (grep + lectura)
+· Endpoints (OpenAPI + código)
+· Tests (pytest --collect-only + vitest run)
+· Estado producción (curl + verificación e2e)
+· Diseño 14.9 (documento del autor)
+
+Lo que es reconstruido
+
+· Contexto conversacional de los chats anteriores a este
+· Decisiones específicas que no dejaron huella en commits
+· Justificaciones de algunas elecciones (deducidas del código)
+· Números exactos de tests por fase (algunos son aproximaciones del total, no de desglose individual)
+
+Lo que NO está en este documento
+
+· Código fuente completo de ficheros individuales (vive en la repo)
+· Logs de ejecuciones pasadas
+· Prompts de IA detallados (viven en app/core/ai/prompts/)
+· Configuración de Render/Vercel (vive en sus dashboards)
+· API keys (nunca se documentan)
+
+Cómo actualizar este documento
+
+· Cada fase cerrada → añadir su sección a "Historia completa"
+· Cada modelo nuevo → añadir a "Modelo de datos"
+· Cada endpoint nuevo → añadir a "Endpoints"
+· Cada cambio en el roadmap → actualizar "Roadmap"
+· Cada migración → añadir a "Migraciones"
+
+Este documento es la fuente de verdad del proyecto. Si algo aquí contradice al código, gana el código, y este documento se actualiza.
+
+---
+
+🏁 FIN DEL DOCUMENTO MAESTRO
+
+Nuvora — 109 commits en 7 días.
+De 0 a SaaS funcional con IA, workflows, tester y publicación (próxima).
+
+Documento vivo. Última actualización: 16 sep 2026.
+
+---
+
+Fin de la Parte 4/4.
+
+Cuando termines de pegar las 4 partes y tengas el documento completo, dime:
+
+1. Si algo no cuadra → lo corregimos
+2. Si quieres añadir algo → lo añadimos
+3. Si está OK → guardo el documento como ~/nuvora/DOCUMENTO_MAESTRO_NUVORA.md y lo subimos a Git
+
+Y luego esperamos tu OK final para arrancar 14.9.2 — Modelo + migración. 🚀
