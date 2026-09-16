@@ -838,3 +838,683 @@ Regla de oro: el bot publicado (14.9) SIEMPRE va por el MUNDO 2 (WorkflowEngine)
 Fin de la Parte 2/4.
 
 Dime si te gusta y sigo con la Parte 3/4 — Arquitectura frontend + Widget + Endpoints + Tests + Deploy. 🎯
+
+¡Perfecto, colega! Aquí va la Parte 3/4. 🎯
+
+---
+
+📖 DOCUMENTO MAESTRO NUVORA
+
+Parte 3/4 — Frontend + Widget + Endpoints + Tests + Deploy
+
+---
+
+5. ARQUITECTURA FRONTEND
+
+5.1. Estructura de frontend/
+
+```
+frontend/
+├── index.html
+├── package.json
+├── vite.config.js               # Config Vite + Vitest
+├── public/
+│   ├── favicon.svg
+│   └── logo.png
+├── src/
+│   ├── main.jsx                 # Punto de entrada React
+│   ├── App.jsx                  # Routing completo
+│   ├── index.css                # Tailwind + estilos globales
+│   ├── components/
+│   │   ├── Badge.jsx
+│   │   ├── Button.jsx
+│   │   ├── Card.jsx
+│   │   ├── Input.jsx
+│   │   ├── Layout.jsx
+│   │   ├── NichoBadge.jsx
+│   │   ├── NichoSelector.jsx
+│   │   ├── builder/
+│   │   │   ├── AIDesignerPanel.jsx
+│   │   │   ├── NodePalette.jsx
+│   │   │   ├── RunPanel.jsx
+│   │   │   └── TemplatesGrid.jsx
+│   │   ├── canvas/
+│   │   │   ├── Canvas.jsx
+│   │   │   ├── CustomNode.jsx
+│   │   │   ├── NodeShell.jsx
+│   │   │   └── nodes/
+│   │   │       ├── ConditionNode.jsx
+│   │   │       ├── EndNode.jsx
+│   │   │       ├── MessageNode.jsx
+│   │   │       ├── QuestionNode.jsx
+│   │   │       ├── ResponseNode.jsx
+│   │   │       ├── StartNode.jsx
+│   │   │       └── VariableNode.jsx
+│   │   ├── inspector/
+│   │   │   ├── InspectorCondition.jsx
+│   │   │   ├── InspectorHeader.jsx
+│   │   │   ├── InspectorMessage.jsx
+│   │   │   ├── InspectorQuestion.jsx
+│   │   │   ├── InspectorResponse.jsx
+│   │   │   ├── InspectorVariable.jsx
+│   │   │   ├── NodeInspector.jsx
+│   │   │   └── TransitionInspector.jsx
+│   │   ├── tester/
+│   │   │   ├── TestEditor.jsx
+│   │   │   ├── TestList.jsx
+│   │   │   ├── TestResults.jsx
+│   │   │   └── TraceView.jsx
+│   │   └── ui/
+│   │       ├── ConfirmModal.jsx
+│   │       └── Spinner.jsx
+│   ├── context/
+│   │   ├── AuthContext.jsx
+│   │   └── BotContext.jsx
+│   ├── data/
+│   │   └── nichos.js            # Nichos maestros (sincronizado con widget)
+│   ├── hooks/
+│   │   └── useWorkflowBuilder.js
+│   ├── pages/
+│   │   ├── BotTester.jsx
+│   │   ├── Dashboard.jsx
+│   │   ├── Landing.jsx
+│   │   ├── Login.jsx
+│   │   ├── Onboarding.jsx
+│   │   ├── Training.jsx
+│   │   ├── WorkflowBuilder.jsx
+│   │   └── WorkflowsList.jsx
+│   ├── services/
+│   │   ├── aiService.js
+│   │   ├── api.js               # axios base + interceptores
+│   │   ├── auth.js
+│   │   ├── testService.js       # /bots/{id}/tests
+│   │   └── workflowApi.js       # /workflows/{botId}
+│   └── utils/
+│       └── workflowValidation.js
+└── tests/
+    ├── setup.js
+    ├── TestEditor.test.jsx
+    ├── TestList.test.jsx
+    ├── TestResults.test.jsx
+    ├── TraceView.test.jsx
+    ├── generateNodeId.test.js
+    ├── testService.test.js
+    ├── useWorkflowBuilder.test.js
+    └── workflowValidation.test.js
+```
+
+5.2. Routing (App.jsx)
+
+```
+/                        → Landing (público, redirige a /dashboard si logueado)
+/login                   → Login
+/dashboard               → Dashboard (protegido)
+/onboarding              → Onboarding (protegido)
+/training                → Training (protegido)
+/workflows/:botId        → WorkflowsList (protegido)
+/workflows/:botId/new    → WorkflowBuilder (nuevo)
+/workflows/:botId/:workflowId → WorkflowBuilder (editar)
+/bots/:botId/tester      → BotTester
+*                        → Navigate a /
+```
+
+Estructura de protección:
+
+· ProtectedRoute → redirige a /login si no hay usuario
+· PublicRoute → redirige a /dashboard si hay usuario
+· AuthProvider → gestiona user + token + loading
+· BotProvider → gestiona bots + selectedBot
+
+5.3. Contexts
+
+AuthContext:
+
+· user, token, loading
+· login(email, password), register(data), logout()
+· Token guardado en localStorage.nuvora_token
+· Al montar: si hay token → getMe() para validar
+
+BotContext:
+
+· bots, selectedBot, loading
+· setBots, setSelectedBot, setLoading
+
+5.4. Servicios (services/)
+
+api.js — axios base:
+
+· baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+· Interceptor request: añade Authorization: Bearer <token>
+· Interceptor response: en 401 → limpia token + redirect a /login
+
+Servicios por dominio:
+
+Servicio Endpoints
+botService POST / GET /bots/
+memoryService POST / GET /memories/
+askService POST /ask/
+trainingService GET /training/{botId}
+testService CRUD + run + runAll + analyze /bots/{botId}/tests/*
+workflowService CRUD + run /workflows/{botId}/*
+aiService /ai/workflows/*, /ai/templates/*
+authService /auth/register, /auth/login, /auth/me
+
+5.5. Páginas clave
+
+Landing.jsx — página pública:
+
+· Hero con demo del widget
+· Cómo funciona (4 pasos)
+· Beneficios
+· Precio (29,99 € / 12 meses)
+· Footer
+· Toggle modo oscuro/claro
+
+Dashboard.jsx:
+
+· Sidebar con: Inicio, Mi negocio, Conversaciones, Analíticas, Training, Workflows, Instalar widget
+· Estado del servicio (trial/active/expired)
+· Analytics (4 métricas: total, respondidas, sin respuesta, tasa)
+· Lista de bots
+· Memorias del bot seleccionado (añadir, listar)
+· Nicho selector
+· Probar asistente (chat interno)
+· Código del widget (snippet <script src=".../widget.js" data-bot-id="...">)
+
+WorkflowBuilder.jsx — el más complejo:
+
+· Canvas React Flow con nodos arrastrables
+· Paleta de nodos (7 tipos)
+· Node Inspector (formulario por tipo)
+· Transition Inspector
+· Barra superior con:
+  · ← Volver
+  · Nombre del workflow (editable inline)
+  · Indicador "● Sin guardar" si dirty
+  · Errores de validación
+  · Botones: Undo, Redo
+  · 🧪 Test → /bots/{botId}/tester?workflow_id={workflowId}
+  · ✨ AI → abre AIDesignerPanel
+  · ▶ Probar → abre RunPanel
+  · Guardar
+  · 🚀 Publicar ← NUEVO en 14.9
+· Undo/Redo con Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y
+· Delete para borrar nodo/transición
+· Esc para deseleccionar
+· Integración con ?node=X para seleccionar nodo desde Bot Tester
+· beforeunload si hay cambios sin guardar
+
+BotTester.jsx:
+
+· Header con selector de workflow + acciones (🔍 Analizar, ▶ Run all, + Nuevo test)
+· Panel de análisis (errores/warnings/info)
+· Lista de tests (TestList)
+· Resultados expandidos (TestResults)
+· Editor modal (TestEditor)
+· Confirm modal (borrar test)
+· Integración Test → Builder con ?node=X
+
+5.6. Hooks y utils
+
+useWorkflowBuilder.js — el state manager del builder:
+
+· nodes, transitions, workflowMetadata
+· loading, saving, dirty
+· selectedNodeId, selectedNode, selectedTransitionId
+· canUndo, canRedo
+· addNode, updateNode, deleteNode, moveNode
+· addTransition, updateTransition, deleteTransition
+· undo, redo
+· buildSavePayload(), loadSuccess(), reset()
+· Historial de estados (para undo/redo)
+
+workflowValidation.js:
+
+· validateWorkflow({nodes, transitions, workflowMetadata}) → errores + warnings
+· getErrorNodeIds(validation) → array de node_ids con error
+
+generateNodeId(type, nodes) → genera id único tipo message_1, condition_2, etc.
+
+5.7. Tests frontend (107 total)
+
+Configuración (vite.config.js):
+
+```js
+test: {
+  globals: true,
+  environment: 'jsdom',
+  setupFiles: ['./tests/setup.js'],
+  include: ['tests/**/*.test.{js,jsx,mjs}'],
+  exclude: ['node_modules', 'dist'],
+}
+```
+
+Desglose:
+
+Fichero Tests Fase
+useWorkflowBuilder.test.js 17 14.6
+workflowValidation.test.js 14 14.6
+generateNodeId.test.js 4 14.6
+testService.test.js 10 14.8.14
+TestList.test.jsx 18 14.8.14
+TestEditor.test.jsx 16 14.8.14
+TraceView.test.jsx 11 14.8.14
+TestResults.test.jsx 17 14.8.14
+TOTAL 107 
+
+Cómo ejecutar:
+
+```bash
+cd ~/nuvora/frontend
+npx vitest run              # una vez
+npx vitest                  # watch
+```
+
+---
+
+6. WIDGET EMBEBIBLE
+
+6.1. Ubicación actual
+
+~/nuvora/widget/widget.js (518 líneas, vanilla JS, sin dependencias)
+
+6.2. Cómo funciona HOY (pre-14.9)
+
+Integración:
+
+```html
+<script src="widget.js" data-bot-id="1"></script>
+```
+
+Identificación: bot_id numérico (parseado del data-bot-id).
+
+Endpoints que usa:
+
+· GET /bots/{botId}/public → carga nombre, negocio, nicho
+· POST /ask/public → envía mensaje y recibe respuesta
+
+Sesión: sessionStorage.nuvora_session_id (generado client-side con Math.random)
+
+DOM: inyecta <div id="nuvora-bubble"> + <div id="nuvora-window"> directamente en document.body.
+
+Estilos: <style> inline con CSS propio (~280 líneas). No usa shadow DOM ni iframe.
+
+Nicho: lookup local de NICHOS (duplica los nichos del frontend).
+
+Bubble: botón circular abajo-derecha con logo Nuvora.
+Ventana: modal con header (logo + nombre + estado "En línea"), mensajes, input, send.
+Quick questions: chips con preguntas sugeridas por nicho.
+Typing indicator: animación de 3 puntos.
+Estados: abierto/cerrado con animación slide-up.
+
+6.3. Lo que CAMBIARÁ en 14.9
+
+Antes:
+
+```html
+<script src="widget.js" data-bot-id="9"></script>
+```
+
+Después:
+
+```html
+<script src="widget.js" data-bot-public-id="abc-123-uuid"></script>
+```
+
+Endpoints nuevos:
+
+· GET /public/bots/{public_id} → metadatos + config
+· POST /public/bots/{public_id}/session → crea sesión server-side
+· POST /public/bots/{public_id}/message → mensaje → respuesta
+· DELETE /public/bots/{public_id}/session → cierra sesión
+
+Sesión: session_id generado por el servidor (no Math.random client-side).
+
+Nicho: los quick questions vienen de public_config del servidor (no hardcoded).
+
+Lo que NO cambia:
+
+· DOM, estilos, animaciones, UX
+· Logo
+· Estructura del bubble y ventana
+
+6.4. Inconsistencia detectada (a arreglar en 14.9)
+
+El Dashboard da este snippet:
+
+```html
+<script src="https://nuvora-api-1hql.onrender.com/widget.js" data-bot-id="${bot.id}"></script>
+```
+
+Pero el backend NO sirve /widget.js. Hay dos opciones para 14.9:
+
+· A) Servir el widget desde el backend con StaticFiles (/widget.js)
+· B) Cambiar el snippet para apuntar a https://nuvora-chi.vercel.app/widget.js
+· C) Servir desde un CDN externo
+
+Decisión pendiente.
+
+---
+
+7. MODELO DE DATOS — Resumen
+
+7.1. Tablas actuales (13)
+
+Tabla Rol Fase
+users Usuarios 14.0
+bots Bots (raíz de todo) 14.0 + 14.1
+memory_categories Categorías de memoria 14.1.1
+memories Memorias (fact + keyword) 14.1
+conversations Log Q&A (analytics) 14.0
+sources Fuentes de conocimiento 14.3.1
+source_chunks Chunks de sources 14.3.1
+workflows Workflows estáticos 14.5.1
+workflow_nodes Nodos de workflow 14.5.1
+workflow_transitions Transiciones 14.5.1
+user_ai_configs BYOK keys cifradas 14.7.4b
+workflow_tests Tests del Bot Tester 14.8.6
+
+7.2. Tablas que añadirá 14.9
+
+Tabla Rol
+public_sessions Sesiones anónimas de bots publicados
+
+Columnas:
+
+```
+id, public_id (UUID único), bot_id (FK CASCADE),
+session_data (JSON), status, created_at, updated_at, expires_at
+```
+
+7.3. Columnas que añadirá 14.9 a bots
+
+```sql
+public_id       VARCHAR(36)  UNIQUE, INDEX, NULLABLE
+public_slug     VARCHAR(100) UNIQUE, NULLABLE
+published_at    DATETIME     NULLABLE
+public_config   TEXT (JSON)  NULLABLE
+```
+
+is_published YA existe (bool) → se reutiliza como flag rápido.
+
+---
+
+8. ENDPOINTS API
+
+8.1. Auth (/auth)
+
+Método Path Auth
+POST /auth/register No
+POST /auth/login No
+GET /auth/me JWT
+
+8.2. Bots (/bots)
+
+Método Path Auth
+POST /bots/ JWT
+GET /bots/ JWT
+GET /bots/{bot_id} JWT
+PATCH /bots/{bot_id} JWT
+GET /bots/{bot_id}/public No (legacy)
+
+8.3. Workflows (/workflows)
+
+Método Path Auth
+POST /workflows/{bot_id} JWT
+GET /workflows/{bot_id} JWT
+GET /workflows/{bot_id}/{workflow_id} JWT
+PUT /workflows/{bot_id}/{workflow_id} JWT
+DELETE /workflows/{bot_id}/{workflow_id} JWT
+POST /workflows/{bot_id}/{workflow_id}/run JWT
+
+8.4. Bot Tester (/bots/{bot_id}/tests) — 14.8
+
+Método Path Auth
+POST /bots/{bot_id}/tests?workflow_id=X JWT
+GET /bots/{bot_id}/tests?workflow_id=X&enabled_only=B JWT
+GET /bots/{bot_id}/tests/{test_id} JWT
+PUT /bots/{bot_id}/tests/{test_id} JWT
+DELETE /bots/{bot_id}/tests/{test_id} JWT
+POST /bots/{bot_id}/tests/{test_id}/run JWT
+POST /bots/{bot_id}/tests/run-all?workflow_id=X&enabled_only=B JWT
+POST /bots/{bot_id}/tests/generate-basic?workflow_id=X JWT
+POST /bots/{bot_id}/tests/generate?workflow_id=X JWT
+POST /bots/{bot_id}/tests/analyze?workflow_id=X JWT
+
+8.5. Ask (/ask) — legacy
+
+Método Path Auth
+POST /ask/public No (DEPRECATED en 14.9)
+POST /ask/ JWT
+
+8.6. AI Workflows (/ai/*) — 14.7
+
+Método Path Auth
+POST /ai/workflows/generate JWT
+POST /ai/workflows/modify JWT
+POST /ai/workflows/explain JWT
+POST /ai/workflows/analyze JWT
+GET /ai/templates JWT
+POST /ai/templates/{id}/instantiate JWT
+
+8.7. AI Config (/ai/config) — BYOK
+
+Método Path Auth
+GET /ai/config JWT
+POST /ai/config JWT
+DELETE /ai/config/{provider} JWT
+
+8.8. Sources (/sources)
+
+Método Path Auth
+POST /sources/ JWT
+GET /sources/{bot_id} JWT
+DELETE /sources/{source_id} JWT
+POST /sources/{source_id}/reindex JWT
+
+8.9. Memories (/memories)
+
+Método Path Auth
+POST /memories/ JWT
+GET /memories/{bot_id} JWT
+
+8.10. Categories (/categories)
+
+CRUD de memory_categories (JWT).
+
+8.11. Training (/training)
+
+Método Path Auth
+GET /training/{bot_id} JWT
+
+8.12. Analytics (/analytics)
+
+Método Path Auth
+GET /analytics/by-bot/{bot_id} JWT
+GET /analytics/global JWT
+
+8.13. Payments (/payments)
+
+Método Path Auth
+GET /payments/status JWT
+POST /payments/create-checkout-session JWT
+
+8.14. Health
+
+Método Path Auth
+GET /health No
+
+8.15. Endpoints que añadirá 14.9
+
+Privados:
+
+Método Path Auth
+POST /bots/{bot_id}/publish JWT
+POST /bots/{bot_id}/unpublish JWT
+GET /bots/{bot_id}/publication JWT
+PUT /bots/{bot_id}/publication JWT
+
+Públicos:
+
+Método Path Auth
+GET /public/bots/{public_id} No
+POST /public/bots/{public_id}/session No
+POST /public/bots/{public_id}/message No
+DELETE /public/bots/{public_id}/session No
+
+---
+
+9. TESTS
+
+9.1. Backend
+
+Ficheros: 42 (todos en backend/tests/)
+Tests collectados: 630 (con pytest --collect-only)
+
+Desglose por fase:
+
+Fase Ficheros Tests
+14.3 (Knowledge Engine) 6 ~85
+14.4 (Training Assistant) 8 ~140
+14.5 (Workflow Engine) 10 ~150
+14.6 (Builder) 1 ~11
+14.7 (AI Designer) 9 ~132
+14.8 (Bot Tester) 9 142
+
+Patrón: cada test es auto-contenido:
+
+1. TestClient(app)
+2. Registra + login usuario único (timestamp)
+3. Crea bot
+4. Crea workflow
+5. Ejecuta assertions
+6. Verifica ownership, 401, 403, 404
+
+No hay conftest.py. Cada test monta su propio contexto.
+
+Cómo ejecutar:
+
+```bash
+cd ~/nuvora/backend
+source ../venv/bin/activate
+pytest                                 # todos
+pytest -k "14_8" -v                    # solo 14.8
+pytest --collect-only -q               # ver cuántos hay
+```
+
+9.2. Frontend
+
+Ficheros: 8
+Tests: 107
+
+Config: en vite.config.js, environment: 'jsdom', setupFiles: ['./tests/setup.js'].
+
+Cómo ejecutar:
+
+```bash
+cd ~/nuvora/frontend
+npx vitest run              # una vez
+npx vitest                  # watch
+npx vitest --ui             # interfaz web
+```
+
+9.3. Tests E2E (futuro)
+
+Obligatorios para cerrar 14.9:
+
+```
+1. Crear bot
+2. Crear workflow
+3. Validar
+4. Publicar → obtener URL
+5. Abrir URL pública sin login
+6. Crear sesión
+7. Enviar "Hola"
+8. Verificar respuesta del WorkflowEngine
+9. Enviar 2º mensaje → contexto correcto
+10. Despublicar
+11. Verificar URL bloqueada
+```
+
+---
+
+10. DEPLOY
+
+10.1. Backend — Render
+
+· Servicio: srv-dagjljmq1p3s73bjf2jg
+· URL: https://nuvora-api-1hql.onrender.com
+· Plan: Free tier
+· Python: 3.11
+· Comando start: ejecuta pre_deploy.py + uvicorn
+· Auto-deploy: push a main → Render detecta → despliega
+· Cold start: ~30-60s (free tier, duerme tras inactividad)
+· BD: PostgreSQL (Render)
+
+Comando local para deploy:
+
+```bash
+cd ~/nuvora
+rdeploy                 # alias que lanza deploy + guarda DEPLOY_ID
+```
+
+10.2. Frontend — Vercel
+
+· Proyecto: nuvora17/nuvora
+· URL pública: https://nuvora-chi.vercel.app
+· Dominio custom: ninguno (solo alias Vercel)
+· Auto-deploy: push a main → Vercel detecta → despliega
+· Deploy actual: 84dd321 (14.8.14)
+
+Comandos locales:
+
+```bash
+cd ~/nuvora/frontend
+vercel ls                # lista deployments
+vercel --prod            # deploy manual a producción
+```
+
+10.3. CORS (a mejorar en 14.9)
+
+Actual en main.py:
+
+```python
+allow_origins=[
+    "https://nuvora-chi.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:8080",
+]
+```
+
+Problema para 14.9: el widget embebido en webs externas hará peticiones a /public/* desde dominios desconocidos → bloqueado por CORS.
+
+Solución en 14.9: abrir CORS solo para /public/* con Access-Control-Allow-Origin: * (sin cookies).
+
+10.4. Migraciones en producción
+
+Automáticas vía pre_deploy.py:
+
+1. Se ejecuta cada vez que Render despliega
+2. Es idempotente
+3. Crea tablas + aplica migraciones pendientes
+4. Nunca borra datos
+5. Nunca bloquea el arranque
+
+10.5. Alias y dominios
+
+Backend:
+
+· Principal: nuvora-api-1hql.onrender.com
+· No hay dominio custom
+
+Frontend:
+
+· Principal: nuvora-chi.vercel.app
+· Alias de build: nuvora-6dfgu0vvt-nuvora17.vercel.app (protegido con SSO de Vercel)
+· No hay dominio custom
+
+---
+
+Fin de la Parte 3/4.
+
+Dime si te gusta y sigo con la Parte 4/4 — Estado producción + Diseño 14.9 + Roadmap + Convenciones + Notas de reconstrucción. 🎯
