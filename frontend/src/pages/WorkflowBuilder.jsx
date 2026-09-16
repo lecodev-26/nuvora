@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWorkflowBuilder, generateNodeId } from '../hooks/useWorkflowBuilder';
 import { workflowService } from '../services/workflowApi';
@@ -21,7 +21,11 @@ import Button from '../components/Button';
 const WorkflowBuilder = () => {
   const { botId, workflowId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { token } = useAuth();
+
+  // Nodo a seleccionar al cargar (por ejemplo, desde el Bot Tester)
+  const initialNodeId = searchParams.get('node');
 
   const builder = useWorkflowBuilder();
   const {
@@ -138,11 +142,16 @@ const WorkflowBuilder = () => {
             order: t.order,
           })),
         });
+
+        // 14.8.11: si viene ?node=X, seleccionar ese nodo
+        if (initialNodeId && nodesWithPos.some((n) => n.node_id === initialNodeId)) {
+          setTimeout(() => selectNode(initialNodeId), 100);
+        }
       })
       .catch((err) => {
         loadError(err.response?.data?.detail || err.message || 'Error cargando workflow');
       });
-  }, [botId, workflowId, loadStart, loadSuccess, loadError, reset]);
+  }, [botId, workflowId, loadStart, loadSuccess, loadError, reset, initialNodeId, selectNode]);
 
   // ============================================================
   // TRANSICIÓN SELECCIONADA

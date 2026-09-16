@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import TraceView from './TraceView';
 
 /**
@@ -6,6 +7,8 @@ import TraceView from './TraceView';
  *
  * Props:
  *   - result: TestRunResult (o null)
+ *   - botId: number (para el botón "Ir al nodo")
+ *   - workflowId: number (para el botón "Ir al nodo")
  *   - onClose: () => void
  */
 
@@ -30,10 +33,17 @@ const STATUS_STYLES = {
   },
 };
 
-const TestResults = ({ result, onClose }) => {
+const TestResults = ({ result, botId, workflowId, onClose }) => {
+  const navigate = useNavigate();
+
   if (!result) return null;
 
   const style = STATUS_STYLES[result.status] || STATUS_STYLES.error;
+
+  const goToNode = (nodeId) => {
+    if (!botId || !workflowId) return;
+    navigate(`/workflows/${botId}/${workflowId}?node=${nodeId}`);
+  };
 
   return (
     <div className="bg-navy border border-white/10 rounded-xl overflow-hidden">
@@ -87,7 +97,7 @@ const TestResults = ({ result, onClose }) => {
         </div>
       </div>
 
-      {/* Error técnico (solo si status='error') */}
+      {/* Error técnico */}
       {result.status === 'error' && result.error && (
         <div className="px-4 py-3 border-b border-amber-500/30 bg-amber-500/5">
           <div className="text-amber-300 text-xs font-semibold mb-1">
@@ -99,7 +109,59 @@ const TestResults = ({ result, onClose }) => {
         </div>
       )}
 
-      {/* Respuestas generadas */}
+      {/* Assertions fallidas con botón "Ir al nodo" */}
+      {result.assertion_results?.some((ar) => !ar.passed) && (
+        <div className="px-4 py-3 border-b border-white/10 bg-red-500/5">
+          <div className="text-red-300 text-xs font-semibold mb-2">
+            ❌ Assertions fallidas
+          </div>
+          <div className="space-y-2">
+            {result.assertion_results
+              .filter((ar) => !ar.passed)
+              .map((ar, i) => {
+                // Detectar si podemos extraer un node_id relevante
+                let goNodeId = null;
+                if (ar.type === 'node_visited' && ar.expected) {
+                  // expected: "nodo 'X' visitado"
+                  const m = String(ar.expected).match(/'([^']+)'/);
+                  if (m) goNodeId = m[1];
+                }
+
+                return (
+                  <div
+                    key={i}
+                    className="flex items-start gap-2 text-xs bg-black/20 rounded px-2 py-1.5"
+                  >
+                    <span className="text-red-400 shrink-0">❌</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-white/80">{ar.type}</div>
+                      {ar.message && (
+                        <div className="text-white/60 mt-0.5">{ar.message}</div>
+                      )}
+                      {ar.actual !== undefined && ar.actual !== null && (
+                        <div className="text-white/40 mt-0.5">
+                          actual: <span className="font-mono">{JSON.stringify(ar.actual)}</span>
+                        </div>
+                      )}
+                    </div>
+                    {goNodeId && (
+                      <button
+                        type="button"
+                        onClick={() => goToNode(goNodeId)}
+                        className="text-cyan-400 hover:text-cyan-300 text-xs shrink-0 whitespace-nowrap"
+                        title={`Ir al nodo '${goNodeId}' en el Builder`}
+                      >
+                        Ir al nodo →
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Respuestas */}
       {result.responses && result.responses.length > 0 && (
         <div className="px-4 py-3 border-b border-white/10">
           <div className="text-white/60 text-xs uppercase tracking-wider mb-2">
@@ -118,7 +180,7 @@ const TestResults = ({ result, onClose }) => {
         </div>
       )}
 
-      {/* Variables finales */}
+      {/* Variables */}
       {result.variables && Object.keys(result.variables).length > 0 && (
         <div className="px-4 py-3 border-b border-white/10">
           <div className="text-white/60 text-xs uppercase tracking-wider mb-2">

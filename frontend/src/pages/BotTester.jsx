@@ -392,6 +392,8 @@ const BotTester = () => {
         {showResults && (
           <TestResults
             result={showResults}
+            botId={botId}
+            workflowId={workflowId}
             onClose={() => setShowResults(null)}
           />
         )}
