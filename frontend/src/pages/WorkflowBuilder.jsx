@@ -564,6 +564,36 @@ const WorkflowBuilder = () => {
           <Button
             variant="secondary"
             size="sm"
+            onClick={() => {
+              if (dirty) {
+                setConfirmDialog({
+                  title: 'Guardar antes de testear',
+                  message: 'Tienes cambios sin guardar. El Tester ejecutará la última versión GUARDADA del workflow. ¿Guardar antes de continuar?',
+                  confirmText: 'Guardar y Testear',
+                  danger: false,
+                  onConfirm: async () => {
+                    setConfirmDialog(null);
+                    await handleSave();
+                    if (workflowId && workflowId !== 'new') {
+                      navigate(`/bots/${botId}/tester?workflow_id=${workflowId}`);
+                    }
+                  },
+                });
+              } else if (workflowId && workflowId !== 'new') {
+                navigate(`/bots/${botId}/tester?workflow_id=${workflowId}`);
+              } else {
+                alert('Guarda el workflow primero antes de testearlo.');
+              }
+            }}
+            disabled={!canRun}
+            title={canRun ? 'Ir al Bot Tester' : 'Guarda el workflow primero'}
+          >
+            🧪 Test
+          </Button>
+
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setShowAIDesigner(true)}
             title="Generar workflow con IA"
           >
