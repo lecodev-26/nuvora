@@ -8,6 +8,7 @@ from app.routers import (
     ai_config,
     ai_workflows,
     tests,
+    publication,
 )
 
 load_dotenv()
@@ -43,6 +44,7 @@ app.include_router(workflows.router)  # ← NUEVO 14.5.7
 app.include_router(ai_config.router)  # ← NUEVO 14.7.4b (BYOK)
 app.include_router(ai_workflows.router)  # ← NUEVO 14.7.7 (AI Workflow Designer)
 app.include_router(tests.router)  # ← NUEVO 14.8.7 (Bot Tester)
+app.include_router(publication.router)  # ← NUEVO 14.9.5 (Publicación Universal)
 
 @app.get("/health")
 def health_check():
