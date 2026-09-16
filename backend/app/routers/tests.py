@@ -47,6 +47,8 @@ from app.core.testing import (
     TestNotFoundError,
     TestLimitExceededError,
 )
+from app.core.ai.rate_limit import check_rate_limit, RateLimitExceeded
+from app.config import settings
 
 
 logger = logging.getLogger(__name__)
@@ -73,6 +75,21 @@ def _verify_bot_ownership(bot: Bot, current_user: User) -> None:
         return
     if bot.owner_email != current_user.email:
         raise HTTPException(status_code=403, detail="No tienes permiso para acceder a este bot")
+
+
+def _check_test_rate(user_id: int, bucket: str, limit: int) -> None:
+    """Aplica rate limiting y convierte RateLimitExceeded en HTTP 429."""
+    try:
+        check_rate_limit(user_id=user_id, bucket=bucket, max_per_hour=limit)
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Has superado el límite de {e.limit} peticiones por hora "
+                f"para esta operación. Reintenta en {e.retry_after} segundos."
+            ),
+            headers={"Retry-After": str(e.retry_after)},
+        )
 
 
 def _get_test_or_404(db: Session, bot_id: int, test_id: int) -> WorkflowTest:
@@ -338,6 +355,13 @@ def run_test(
     """Ejecuta un test individual."""
     bot = _get_bot_or_404(db, bot_id)
     _verify_bot_ownership(bot, current_user)
+
+    _check_test_rate(
+        user_id=current_user.id,
+        bucket="test_run",
+        limit=settings.tests.rate_limit_test_run,
+    )
+
     t = _get_test_or_404(db, bot_id, test_id)
 
     wf = _load_workflow_with_relations(db, t.workflow_id)
@@ -375,6 +399,13 @@ def run_all_tests(
     """
     bot = _get_bot_or_404(db, bot_id)
     _verify_bot_ownership(bot, current_user)
+
+    _check_test_rate(
+        user_id=current_user.id,
+        bucket="test_run_all",
+        limit=settings.tests.rate_limit_test_run_all,
+    )
+
     _get_workflow_of_bot(db, bot_id, workflow_id)
 
     q = db.query(WorkflowTest).filter(
@@ -421,6 +452,13 @@ def analyze_workflow(
     """
     bot = _get_bot_or_404(db, bot_id)
     _verify_bot_ownership(bot, current_user)
+
+    _check_test_rate(
+        user_id=current_user.id,
+        bucket="test_analyze",
+        limit=settings.tests.rate_limit_test_analyze,
+    )
+
     _get_workflow_of_bot(db, bot_id, workflow_id)
 
     wf = _load_workflow_with_relations(db, workflow_id)

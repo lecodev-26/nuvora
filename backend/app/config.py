@@ -165,6 +165,11 @@ class TestConfig:
     max_message_length: int = 1000
     max_assertion_value_length: int = 500
 
+    # Rate limiting (14.8.8) — por hora
+    rate_limit_test_run: int = 60            # ejecutar 1 test
+    rate_limit_test_run_all: int = 20        # ejecutar todos los tests
+    rate_limit_test_analyze: int = 100       # análisis estático
+
 
 @dataclass(frozen=True)
 class AppConfig:
@@ -259,6 +264,10 @@ def _build_test_config() -> TestConfig:
         max_test_name_length=_env_int("TEST_MAX_NAME_LENGTH", 200),
         max_message_length=_env_int("TEST_MAX_MESSAGE_LENGTH", 1000),
         max_assertion_value_length=_env_int("TEST_MAX_ASSERTION_VALUE_LENGTH", 500),
+        # Rate limiting (14.8.8)
+        rate_limit_test_run=_env_int("TEST_RATE_LIMIT_RUN", 60),
+        rate_limit_test_run_all=_env_int("TEST_RATE_LIMIT_RUN_ALL", 20),
+        rate_limit_test_analyze=_env_int("TEST_RATE_LIMIT_ANALYZE", 100),
     )
 
 

@@ -100,13 +100,19 @@ class _Ctx:
 
 def test_valid_buckets():
     print("\n" + "=" * 70)
-    print("TEST 1: VALID_BUCKETS contiene los 6 buckets")
+    print("TEST 1: VALID_BUCKETS contiene los 6 buckets de IA")
     print("=" * 70)
-    assert VALID_BUCKETS == {
+    # Los 6 buckets de IA deben estar presentes (subconjunto).
+    # En 14.8 se añadieron 3 más del Tester, pero este test solo verifica los de IA.
+    ia_buckets = {
         "generate", "modify", "explain", "analyze",
         "templates_list", "templates_instantiate",
     }
-    print(f"  ✅ {sorted(VALID_BUCKETS)}")
+    assert ia_buckets.issubset(VALID_BUCKETS), (
+        f"Faltan buckets de IA: {ia_buckets - VALID_BUCKETS}"
+    )
+    print(f"  ✅ Los 6 buckets de IA están presentes")
+    print(f"  Total actual: {len(VALID_BUCKETS)} buckets")
 
 
 def test_check_rate_limit_basic():

@@ -37,12 +37,17 @@ WINDOW_SECONDS = 3600  # ventana de 1 hora
 
 # Buckets válidos (para validación interna)
 VALID_BUCKETS = {
+    # IA (14.7)
     "generate",
     "modify",
     "explain",
     "analyze",
     "templates_list",
     "templates_instantiate",
+    # Bot Tester (14.8)
+    "test_run",
+    "test_run_all",
+    "test_analyze",
 }
 
 
