@@ -30,6 +30,10 @@ from app.core.ai.prompts.analyze import (
     ANALYZE_USER_TEMPLATE,
     build_analyze_prompt,
 )
+from app.core.ai.prompts.generate_tests import (
+    GENERATE_TESTS_USER_TEMPLATE,
+    build_generate_tests_prompt,
+)
 
 __all__ = [
     "SYSTEM_PROMPT_BASE",
@@ -42,4 +46,6 @@ __all__ = [
     "build_explain_prompt",
     "ANALYZE_USER_TEMPLATE",
     "build_analyze_prompt",
+    "GENERATE_TESTS_USER_TEMPLATE",
+    "build_generate_tests_prompt",
 ]

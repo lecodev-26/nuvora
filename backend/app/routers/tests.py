@@ -39,11 +39,13 @@ from app.models.test import (
     TestRunAllResult,
     AnalyzeResponse,
     TestAssertion,
+    GenerateAITestsResponse,
 )
 from app.services.auth import get_current_user
 from app.core.testing import (
     TestRunner,
     WorkflowAnalyzer,
+    AITestGenerator,
     TestNotFoundError,
     TestLimitExceededError,
 )
@@ -468,3 +470,59 @@ def analyze_workflow(
     response = analyzer.analyze()
     response.workflow_id = workflow_id
     return response
+
+
+# ============================================================
+# AI TEST GENERATOR (14.8.12)
+# ============================================================
+
+@router.post("/{bot_id}/tests/generate", response_model=GenerateAITestsResponse)
+def generate_tests_with_ai(
+    bot_id: int,
+    workflow_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Genera DEFINICIONES de tests usando IA (reutiliza 14.7).
+
+    La IA NO ejecuta workflows. Solo genera JSON de tests.
+    El usuario decide si los guarda.
+
+    Query params:
+        workflow_id: workflow sobre el que generar tests.
+    """
+    bot = _get_bot_or_404(db, bot_id)
+    _verify_bot_ownership(bot, current_user)
+
+    # Reutilizamos el bucket 'test_analyze' (operación ligera, 100/h)
+    _check_test_rate(
+        user_id=current_user.id,
+        bucket="test_analyze",
+        limit=settings.tests.rate_limit_test_analyze,
+    )
+
+    _get_workflow_of_bot(db, bot_id, workflow_id)
+
+    wf = _load_workflow_with_relations(db, workflow_id)
+    wf_dict = _workflow_to_dict(wf)
+
+    try:
+        generator = AITestGenerator(db=db, user_id=current_user.id)
+        result = generator.generate(workflow_data=wf_dict)
+        return result
+    except Exception as e:
+        logger.warning(
+            f"[tests.generate] user={current_user.id}: {type(e).__name__}: {e}"
+        )
+        # Reutilizamos el mapeo de errores del router de IA
+        from app.routers.ai_workflows import _handle_ai_error
+        try:
+            raise _handle_ai_error(e)
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error generando tests con IA: {type(e).__name__}",
+            )

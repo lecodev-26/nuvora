@@ -179,6 +179,78 @@ ANALYZE_RESPONSE_SCHEMA: dict[str, Any] = {
 }
 
 
+# ============================================================
+# JSON SCHEMA PARA GENERACIÓN DE TESTS (14.8.12)
+# ============================================================
+
+GENERATE_TESTS_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "generated": {
+            "type": "array",
+            "description": "Lista de tests generados (mínimo 3, máximo 5).",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Nombre corto del test (máx 200 chars)",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Descripción del test",
+                    },
+                    "input_messages": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Mensajes de entrada del usuario (1-5)",
+                    },
+                    "initial_variables": {
+                        "type": "object",
+                        "description": "Variables iniciales simuladas",
+                        "additionalProperties": True,
+                    },
+                    "assertions": {
+                        "type": "array",
+                        "description": "Assertions del test",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Tipo de assertion (uno de los 10)",
+                                },
+                                "value": {"type": "string"},
+                                "node_id": {"type": "string"},
+                                "variable": {"type": "string"},
+                                "expected": {},
+                                "max_steps": {"type": "integer"},
+                            },
+                            "required": ["type"],
+                        },
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Si el test está habilitado (default true)",
+                    },
+                },
+                "required": ["name", "input_messages", "assertions"],
+            },
+        },
+        "count": {
+            "type": "integer",
+            "description": "Número de tests en `generated`",
+        },
+        "notes": {
+            "type": "array",
+            "description": "Notas opcionales sobre la generación",
+            "items": {"type": "string"},
+        },
+    },
+    "required": ["generated", "count"],
+}
+
+
 __all__ = [
     "VALID_NODE_TYPES",
     "WORKFLOW_JSON_SCHEMA",
@@ -186,4 +258,5 @@ __all__ = [
     "MODIFY_RESPONSE_SCHEMA",
     "EXPLAIN_RESPONSE_SCHEMA",
     "ANALYZE_RESPONSE_SCHEMA",
+    "GENERATE_TESTS_RESPONSE_SCHEMA",
 ]
