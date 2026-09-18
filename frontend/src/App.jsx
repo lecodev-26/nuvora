@@ -10,6 +10,7 @@ import Training from './pages/Training';
 import WorkflowBuilder from './pages/WorkflowBuilder';
 import WorkflowsList from './pages/WorkflowsList';
 import BotTester from './pages/BotTester';
+import PublicBot from './pages/PublicBot';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -130,6 +131,9 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
+
+      {/* Bot Público → /b/:identifier (sin auth, ni protected ni public) */}
+      <Route path="/b/:identifier" element={<PublicBot />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
