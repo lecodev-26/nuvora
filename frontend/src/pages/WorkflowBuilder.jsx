@@ -11,6 +11,7 @@ import NodePalette from '../components/builder/NodePalette';
 import RunPanel from '../components/builder/RunPanel';
 import AIDesignerPanel from '../components/builder/AIDesignerPanel';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import PublicationPanel from '../components/publication/PublicationPanel';
 import Spinner from '../components/ui/Spinner';
 import Button from '../components/Button';
 
@@ -70,6 +71,7 @@ const WorkflowBuilder = () => {
   const [showErrorPanel, setShowErrorPanel] = useState(true);
   const [showRunPanel, setShowRunPanel] = useState(false);
   const [showAIDesigner, setShowAIDesigner] = useState(false);
+  const [showPublicationPanel, setShowPublicationPanel] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   // ============================================================
@@ -571,6 +573,33 @@ const WorkflowBuilder = () => {
           )}
 
           <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              if (dirty) {
+                setConfirmDialog({
+                  title: 'Guardar antes de publicar',
+                  message: 'Tienes cambios sin guardar. La publicación usará la última versión GUARDADA del workflow. ¿Guardar antes de continuar?',
+                  confirmText: 'Guardar y Publicar',
+                  danger: false,
+                  onConfirm: async () => {
+                    setConfirmDialog(null);
+                    await handleSave();
+                    if (workflowId && workflowId !== 'new') {
+                      setShowPublicationPanel(true);
+                    }
+                  },
+                });
+              } else {
+                setShowPublicationPanel(true);
+              }
+            }}
+            title="Publicar bot en URL pública"
+          >
+            🚀 Publicar
+          </Button>
+
+          <Button
             variant="secondary"
             size="sm"
             onClick={() => {
@@ -736,6 +765,16 @@ const WorkflowBuilder = () => {
         open={showAIDesigner}
         onClose={() => setShowAIDesigner(false)}
         onGenerated={handleAIGenerated}
+      />
+
+      {/* Panel de publicación */}
+      <PublicationPanel
+        open={showPublicationPanel}
+        botId={parseInt(botId)}
+        onClose={() => setShowPublicationPanel(false)}
+        onPublished={() => {
+          // Refrescar state si quisiéramos (por ahora nada)
+        }}
       />
 
       {/* Confirm modal genérico */}
