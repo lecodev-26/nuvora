@@ -11,7 +11,7 @@ REGLA DE ORO:
 Ejecuta el MISMO WorkflowEngine de 14.5. Cero duplicación.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database.config import get_db
@@ -44,6 +44,10 @@ from app.core.workflows.errors import (
     MaxStepsExceeded,
     ConditionError,
 )
+from app.core.public_rate_limit import (
+    check_public_rate_limit,
+    PublicRateLimitExceeded,
+)
 
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -60,6 +64,29 @@ PUBLIC_TIMEOUT_SECONDS = 30    # (no aplicado todavía; el engine no timeout-a)
 # ============================================================
 # HELPERS
 # ============================================================
+
+def _get_client_ip(request: Request) -> str:
+    """
+    Obtiene la IP del visitante.
+    Prioriza X-Forwarded-For (Render/proxies) → request.client.host.
+    """
+    xff = request.headers.get("X-Forwarded-For")
+    if xff:
+        # "cliente, proxy1, proxy2" → primera IP
+        return xff.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
+def _handle_public_rate_limit(exc: PublicRateLimitExceeded) -> HTTPException:
+    """Convierte PublicRateLimitExceeded en HTTPException 429 con Retry-After."""
+    return HTTPException(
+        status_code=429,
+        detail=str(exc),
+        headers={"Retry-After": str(exc.retry_after)},
+    )
+
 
 def _extract_reply(result) -> str:
     """
@@ -131,9 +158,17 @@ def get_public_bot(
 def create_public_session(
     identifier: str,
     data: PublicSessionCreateRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """Crea una sesión anónima para el bot."""
+    # Rate limiting por IP
+    ip = _get_client_ip(request)
+    try:
+        check_public_rate_limit(key=ip, bucket="public_session_create")
+    except PublicRateLimitExceeded as e:
+        raise _handle_public_rate_limit(e)
+
     bot = resolve_public_bot_by_identifier(identifier, db)
     sess = create_session(bot, db)
     return PublicSessionResponse(
@@ -150,35 +185,45 @@ def create_public_session(
 def send_public_message(
     identifier: str,
     data: PublicMessageRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """
     Envía un mensaje al bot publicado y devuelve la respuesta.
 
     Flujo:
-        1. Resolver bot.
-        2. Recuperar sesión (verificar pertenencia + TTL).
-        3. Guardar mensaje del usuario.
-        4. Cargar workflow activo.
-        5. Ejecutar WorkflowEngine.run().
-        6. Extraer respuesta.
-        7. Guardar respuesta del bot.
-        8. Devolver.
+        1. Rate limiting (por IP + por session_id).
+        2. Resolver bot.
+        3. Recuperar sesión (verificar pertenencia + TTL).
+        4. Guardar mensaje del usuario.
+        5. Cargar workflow activo.
+        6. Ejecutar WorkflowEngine.run().
+        7. Extraer respuesta.
+        8. Guardar respuesta del bot.
+        9. Devolver.
     """
-    # 1. Bot
+    # 1. Rate limiting (IP + session)
+    ip = _get_client_ip(request)
+    try:
+        check_public_rate_limit(key=ip, bucket="public_message")
+        check_public_rate_limit(key=data.session_id, bucket="public_message_session")
+    except PublicRateLimitExceeded as e:
+        raise _handle_public_rate_limit(e)
+
+    # 2. Bot
     bot = resolve_public_bot_by_identifier(identifier, db)
 
-    # 2. Sesión
+    # 3. Sesión
     sess = get_session(data.session_id, bot, db)
 
-    # 3. Guardar mensaje del usuario
+    # 4. Guardar mensaje del usuario
     append_user_message(sess, data.message, db)
 
-    # 4. Workflow activo
+    # 5. Workflow activo
     wf = get_active_workflow(bot.id, db)
     wf_dict = build_public_workflow_dict(wf)
 
-    # 5. Ejecutar el engine
+    # 6. Ejecutar el engine
     engine = WorkflowEngine()
     try:
         result = engine.run(
@@ -212,13 +257,13 @@ def send_public_message(
             detail=f"Error de ejecución: {str(e)}",
         )
 
-    # 6. Extraer respuesta
+    # 7. Extraer respuesta
     reply = _extract_reply(result)
 
-    # 7. Guardar respuesta del bot
+    # 8. Guardar respuesta del bot
     append_bot_message(sess, reply, db)
 
-    # 8. Devolver
+    # 9. Devolver
     status_map = {
         "completed": "completed",
         "waiting_input": "waiting_input",

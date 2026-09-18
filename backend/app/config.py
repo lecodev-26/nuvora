@@ -172,6 +172,26 @@ class TestConfig:
 
 
 @dataclass(frozen=True)
+class PublicRateLimitConfig:
+    """
+    Configuración de rate limiting para endpoints públicos (Fase 14.9.9).
+
+    Los endpoints /public/* son consumidos por visitantes anónimos.
+    Se aplican límites por IP y por session_id para proteger contra abuso.
+
+    Buckets:
+        - public_session_create: creación de sesiones (por IP)
+        - public_message:         mensajes enviados (por IP)
+        - public_message_session: mensajes enviados (por session_id)
+    """
+    enabled: bool = True
+    window_seconds: int = 3600
+    session_create_limit: int = 10
+    message_limit: int = 60
+    message_per_session_limit: int = 120
+@dataclass(frozen=True)
+
+
 class AppConfig:
     """Configuración general de la app (ya existente, centralizada)."""
     name: str = "Nuvora API"
@@ -182,6 +202,7 @@ class AppConfig:
     # Sub-configs
     ai: AIConfig = field(default_factory=AIConfig)
     tests: TestConfig = field(default_factory=TestConfig)
+    public_rate_limit: PublicRateLimitConfig = field(default_factory=PublicRateLimitConfig)
 
 
 # ============================================================
@@ -271,6 +292,16 @@ def _build_test_config() -> TestConfig:
     )
 
 
+def _build_public_rate_limit_config() -> PublicRateLimitConfig:
+    return PublicRateLimitConfig(
+        enabled=_env_bool("PUBLIC_RATE_LIMIT_ENABLED", True),
+        window_seconds=_env_int("PUBLIC_RATE_LIMIT_WINDOW_SECONDS", 3600),
+        session_create_limit=_env_int("PUBLIC_RATE_LIMIT_SESSION_CREATE", 10),
+        message_limit=_env_int("PUBLIC_RATE_LIMIT_MESSAGE", 60),
+        message_per_session_limit=_env_int("PUBLIC_RATE_LIMIT_MESSAGE_SESSION", 120),
+    )
+
+
 def _build_app_config() -> AppConfig:
     return AppConfig(
         name=os.getenv("APP_NAME", "Nuvora API"),
@@ -279,6 +310,7 @@ def _build_app_config() -> AppConfig:
         database_url=os.getenv("DATABASE_URL", "sqlite:///./nuvora.db"),
         ai=_build_ai_config(),
         tests=_build_test_config(),
+        public_rate_limit=_build_public_rate_limit_config(),
     )
 
 
@@ -286,4 +318,4 @@ def _build_app_config() -> AppConfig:
 settings = _build_app_config()
 
 
-__all__ = ["settings", "AIConfig", "TestConfig", "AppConfig"]
+__all__ = ["settings", "AIConfig", "TestConfig", "AppConfig", "PublicRateLimitConfig"]
