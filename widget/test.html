@@ -52,12 +52,19 @@
 <body>
     <div class="card">
         <img src="https://raw.githubusercontent.com/lecodev-26/nuvora/main/assets/logo.png" alt="Nuvora">
-        <h1>🍽️ Nuvora</h1>
-        <p>Asistente inteligente para restaurantes</p>
-        <div class="badge">💬 Widget en prueba</div>
+        <h1>✨ Nuvora Widget</h1>
+        <p>Prueba local del widget embebible</p>
+        <div class="badge">💬 Modo: data-bot-public-id</div>
     </div>
 
-    <!-- Widget con bot-id dinámico -->
-    <script src="widget.js" data-bot-id="1"></script>
+    <!--
+      NUEVO formato (14.9+):
+      - Necesita un bot publicado (con public_id)
+      - Reemplaza "TU_PUBLIC_ID_AQUI" por el public_id real
+    -->
+    <script
+      src="./widget.js"
+      data-bot-public-id="TU_PUBLIC_ID_AQUI"
+    ></script>
 </body>
 </html>

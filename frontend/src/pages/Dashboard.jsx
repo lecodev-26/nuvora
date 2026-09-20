@@ -530,14 +530,20 @@ const Dashboard = () => {
 
                   <div className="border-t border-white/5 pt-4">
                     <p className="text-xs text-white/50 mb-2">Código del widget:</p>
+                    {!selectedBot.public_id && (
+                      <div className="mb-2 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 text-amber-300 text-[11px]">
+                        ⚠️ Este bot no está publicado todavía. Publícalo desde el Builder (🚀 Publicar)
+                        para obtener su public_id antes de usar el widget.
+                      </div>
+                    )}
                     <div className="bg-black/50 rounded-xl p-3 overflow-x-auto">
                       <code className="text-xs text-cyan-400 break-all">
-                        {`<script src="https://nuvora-api-1hql.onrender.com/widget.js" data-bot-id="${selectedBot.id}"></script>`}
+                        {`<script src="https://nuvora-api-1hql.onrender.com/widget.js" data-bot-public-id="${selectedBot.public_id || '__NO_PUBLICADO__'}"></script>`}
                       </code>
                     </div>
                     <button
                       onClick={() => {
-                        const code = `<script src="https://nuvora-api-1hql.onrender.com/widget.js" data-bot-id="${selectedBot.id}"></script>`;
+                        const code = `<script src="https://nuvora-api-1hql.onrender.com/widget.js" data-bot-public-id="${selectedBot.public_id || '__NO_PUBLICADO__'}"></script>`;
                         navigator.clipboard?.writeText(code);
                         alert('¡Código copiado al portapapeles!');
                       }}
