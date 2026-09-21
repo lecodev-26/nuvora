@@ -477,3 +477,59 @@ class PublicSession(Base):
 
     def __repr__(self):
         return f"<PublicSession {self.public_id} (bot={self.bot_id}, status={self.status})>"
+
+
+# ============================================================
+# API KEY (Fase 14.10 — Nuvora API)
+# ============================================================
+
+class ApiKey(Base):
+    """
+    API Key para consumir un bot desde integraciones externas (14.10).
+
+    SEGURIDAD:
+        - El secret de la key NUNCA se guarda en claro.
+        - Se guarda `key_prefix` (visible) + `key_hash` (SHA256 del secret).
+        - La key completa solo se muestra UNA VEZ al crearla.
+
+    ALCANCE:
+        - Cada key pertenece a 1 usuario + 1 bot.
+        - No se puede usar la key en otro bot aunque sea del mismo user.
+        - Revocación: is_active=False + revoked_at (nunca se reactiva).
+        - Expiración opcional (expires_at nullable).
+
+    FORMATO:
+        nvr_live_<32 bytes base64 url-safe>
+        Ej: nvr_live_1a2b3c4d5e6f...
+
+    USO:
+        Authorization: Bearer nvr_live_...
+    """
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    bot_id = Column(
+        Integer,
+        ForeignKey("bots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name = Column(String(100), nullable=False)
+    key_prefix = Column(String(30), nullable=False, index=True)
+    key_hash = Column(String(64), nullable=False, unique=True, index=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<ApiKey {self.id}: {self.name} (bot={self.bot_id}, prefix={self.key_prefix})>"
