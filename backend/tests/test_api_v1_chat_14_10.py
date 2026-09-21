@@ -132,6 +132,27 @@ def test_setup():
     print("SETUP: 2 users + bot publicado cada uno + API keys")
     print("=" * 70)
     reset_public_all()
+
+    # Limpiar cualquier residuo de ejecuciones anteriores
+    from sqlalchemy import text
+    from app.database.config import engine
+    with engine.begin() as conn:
+        conn.execute(text("PRAGMA foreign_keys=OFF"))
+        pattern = "apichat_%"
+        for sql in [
+            "DELETE FROM public_sessions WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM workflow_tests WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflows WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)))",
+            "DELETE FROM workflow_nodes WHERE workflow_id IN (SELECT id FROM workflows WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)))",
+            "DELETE FROM workflows WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM conversations WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM api_keys WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)",
+            "DELETE FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)",
+            "DELETE FROM users WHERE email LIKE :p",
+        ]:
+            conn.execute(text(sql), {"p": pattern})
+        conn.execute(text("PRAGMA foreign_keys=ON"))
+
     # User 1 (para bot1 y todas las pruebas)
     _Ctx.headers, _Ctx.email1 = _register_and_login("setup1")
     _Ctx.bot_id = _setup_published_bot(_Ctx.headers, name="Bot API Chat")
@@ -438,7 +459,11 @@ def test_chat_bot_not_published():
         headers={"Authorization": f"Bearer {key_data['key']}"},
     )
     assert r.status_code == 409
-    print(f"  ✅ 409: {r.json()['detail'][:60]}")
+    # Formato uniforme /api/v1/* (14.10.8)
+    body = r.json()
+    assert "error" in body
+    assert body["error"]["code"] == "BOT_NOT_PUBLISHED"
+    print(f"  ✅ 409: {body['error']['message'][:60]}")
 
 
 # ============================================================

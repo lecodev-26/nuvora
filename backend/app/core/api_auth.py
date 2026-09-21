@@ -40,6 +40,7 @@ from sqlalchemy.orm import Session
 from app.database.config import get_db
 from app.models.db_models import ApiKey, Bot
 from app.services.api_key_service import resolve_api_key
+from app.core.api_errors import ApiError, ErrorCode
 
 
 # ============================================================
@@ -75,33 +76,29 @@ def extract_bearer_token(authorization: Optional[str]) -> str:
         HTTPException 401: si no hay header, formato incorrecto, o vacío.
     """
     if not authorization:
-        raise HTTPException(
-            status_code=401,
-            detail="Falta el header Authorization",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.INVALID_API_KEY,
+            message="Falta el header Authorization",
         )
 
     parts = authorization.strip().split()
     if len(parts) != 2:
-        raise HTTPException(
-            status_code=401,
-            detail="Formato de Authorization inválido",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.INVALID_API_KEY,
+            message="Formato de Authorization inválido",
         )
 
     scheme, token = parts
     if scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=401,
-            detail="Esquema de autorización inválido (se espera Bearer)",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.INVALID_API_KEY,
+            message="Esquema de autorización inválido (se espera Bearer)",
         )
 
     if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Token vacío",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.INVALID_API_KEY,
+            message="Token vacío",
         )
 
     return token

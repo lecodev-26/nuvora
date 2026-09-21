@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from app.models.db_models import ApiKey, Bot
+from app.core.api_errors import ApiError, ErrorCode
 
 
 # ============================================================
@@ -233,10 +234,9 @@ def resolve_api_key(db: Session, provided_key: str) -> tuple[ApiKey, Bot]:
         HTTPException 404: bot no existe (raro pero posible).
     """
     if not provided_key or not provided_key.startswith(KEY_PREFIX):
-        raise HTTPException(
-            status_code=401,
-            detail="API Key inválida",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.INVALID_API_KEY,
+            message="API Key inválida",
         )
 
     key_hash = hash_key(provided_key)
@@ -244,40 +244,36 @@ def resolve_api_key(db: Session, provided_key: str) -> tuple[ApiKey, Bot]:
     # Buscar por hash (indexado)
     api_key = db.query(ApiKey).filter(ApiKey.key_hash == key_hash).first()
     if not api_key:
-        raise HTTPException(
-            status_code=401,
-            detail="API Key inválida",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.INVALID_API_KEY,
+            message="API Key inválida",
         )
 
     if not api_key.is_active:
-        raise HTTPException(
-            status_code=401,
-            detail="API Key revocada",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.REVOKED_API_KEY,
+            message="API Key revocada",
         )
 
     if _is_expired(api_key):
-        raise HTTPException(
-            status_code=401,
-            detail="API Key expirada",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.EXPIRED_API_KEY,
+            message="API Key expirada",
         )
 
     # Verificación timing-safe adicional
     if not verify_key(provided_key, api_key.key_hash):
-        raise HTTPException(
-            status_code=401,
-            detail="API Key inválida",
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiError(
+            code=ErrorCode.INVALID_API_KEY,
+            message="API Key inválida",
         )
 
     # Resolver bot
     bot = db.query(Bot).filter(Bot.id == api_key.bot_id).first()
     if not bot:
-        raise HTTPException(
-            status_code=404,
-            detail="Bot asociado no encontrado",
+        raise ApiError(
+            code=ErrorCode.NOT_FOUND,
+            message="Bot asociado no encontrado",
         )
 
     return api_key, bot

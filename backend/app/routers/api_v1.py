@@ -46,6 +46,7 @@ from app.core.public_rate_limit import (
     check_public_rate_limit,
     PublicRateLimitExceeded,
 )
+from app.core.api_errors import ApiError, ErrorCode
 
 
 router = APIRouter(prefix="/api/v1", tags=["api-v1"])
@@ -73,10 +74,11 @@ def _get_client_ip(request: Request) -> str:
     return "unknown"
 
 
-def _handle_rate_limit(exc: PublicRateLimitExceeded) -> HTTPException:
-    return HTTPException(
+def _handle_rate_limit(exc: PublicRateLimitExceeded) -> ApiError:
+    return ApiError(
+        code=ErrorCode.RATE_LIMITED,
+        message=str(exc),
         status_code=429,
-        detail=str(exc),
         headers={"Retry-After": str(exc.retry_after)},
     )
 
@@ -146,9 +148,9 @@ def api_chat(
 
     # 1. Verificar que el bot está publicado
     if not bot.is_published:
-        raise HTTPException(
-            status_code=409,
-            detail="El bot no está publicado. Publícalo antes de usar la API.",
+        raise ApiError(
+            code=ErrorCode.BOT_NOT_PUBLISHED,
+            message="El bot no está publicado. Publícalo antes de usar la API.",
         )
 
     # 2. Rate limiting (por API key + por IP)
@@ -180,10 +182,10 @@ def api_chat(
     # 5. Cargar workflow activo
     try:
         wf = get_active_workflow(bot.id, db)
-    except HTTPException as e:
-        raise HTTPException(
-            status_code=409,
-            detail="El bot no tiene un workflow activo. Publícalo correctamente antes de usar la API.",
+    except HTTPException:
+        raise ApiError(
+            code=ErrorCode.NO_ACTIVE_WORKFLOW,
+            message="El bot no tiene un workflow activo. Publícalo correctamente antes de usar la API.",
         )
     wf_dict = build_public_workflow_dict(wf)
 
@@ -201,24 +203,24 @@ def api_chat(
             max_steps=PUBLIC_MAX_STEPS,
         )
     except WorkflowValidationError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Workflow inválido: {e.errors}",
+        raise ApiError(
+            code=ErrorCode.INTERNAL_ERROR,
+            message=f"Workflow inválido: {e.errors}",
         )
     except MaxStepsExceeded:
-        raise HTTPException(
-            status_code=500,
-            detail="El workflow ha superado el máximo de pasos",
+        raise ApiError(
+            code=ErrorCode.INTERNAL_ERROR,
+            message="El workflow ha superado el máximo de pasos",
         )
     except ConditionError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error en condición: {e.message}",
+        raise ApiError(
+            code=ErrorCode.INTERNAL_ERROR,
+            message=f"Error en condición: {e.message}",
         )
     except WorkflowExecutionError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error de ejecución: {str(e)}",
+        raise ApiError(
+            code=ErrorCode.INTERNAL_ERROR,
+            message=f"Error de ejecución: {str(e)}",
         )
 
     # 7. Extraer reply + guardar respuesta

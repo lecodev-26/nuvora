@@ -93,6 +93,13 @@ app.include_router(public.router)  # ← NUEVO 14.9.8 (Endpoints públicos)
 app.include_router(api_keys.router)  # ← NUEVO 14.10.6 (Nuvora API - gestión de keys)
 app.include_router(api_v1.router)  # ← NUEVO 14.10.7 (Nuvora API - chat)
 
+# ============================================================
+# API v1 — Errores uniformes (14.10.8)
+# ============================================================
+from app.core.api_errors import register_api_error_handlers
+register_api_error_handlers(app)
+
+
 @app.get("/health")
 def health_check():
     return {
