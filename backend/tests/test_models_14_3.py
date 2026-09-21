@@ -8,6 +8,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
 from sqlalchemy import text
 from app.database.config import SessionLocal, engine, Base
 from app.models.db_models import (
@@ -79,6 +80,35 @@ def test_source_creation():
         assert source.status == "pending"
         assert source.chunks_count == 0
         print(f"✅ Source creada: id={source.id}, title='{source.title}'")
+        return source.id
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def source_id():
+    """
+    Fixture: crea un usuario + bot + source y devuelve el source.id.
+
+    Necesaria para tests que requieren un Source ya persistido:
+        - test_source_chunk_creation
+        - test_cascade_delete
+    """
+    user_id, bot_id = setup_test_data()
+    db = SessionLocal()
+    try:
+        source = Source(
+            bot_id=bot_id,
+            user_id=user_id,
+            type="text",
+            title="Fixture Source",
+            content_raw="Contenido de prueba (fixture)",
+            status="pending",
+            chunks_count=0,
+        )
+        db.add(source)
+        db.commit()
+        db.refresh(source)
         return source.id
     finally:
         db.close()
