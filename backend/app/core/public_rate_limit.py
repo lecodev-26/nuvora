@@ -9,9 +9,13 @@ MECANISMO:
     - Si len(timestamps) >= max → lanza PublicRateLimitExceeded.
 
 BUCKETS:
-    - public_session_create: por IP
-    - public_message:        por IP
+    - public_session_create:  por IP
+    - public_message:         por IP
     - public_message_session: por session_id
+    - api_chat:               por API key (14.10)
+    - api_chat_ip:            por IP (14.10)
+    - telegram_webhook:       por integration_id (14.11)
+    - telegram_webhook_ip:    por IP (14.11)
 
 IMPORTANTE:
     - In-memory → se resetea al reiniciar el server.
@@ -80,6 +84,11 @@ def _get_limit_for(bucket: str) -> int:
         return 60       # por API key
     if bucket == "api_chat_ip":
         return 120      # por IP
+    # Telegram (14.11.11)
+    if bucket == "telegram_webhook":
+        return 120      # por integration_id
+    if bucket == "telegram_webhook_ip":
+        return 240      # por IP
     # Default conservador
     return 30
 

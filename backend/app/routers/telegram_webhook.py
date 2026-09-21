@@ -91,8 +91,8 @@ router = APIRouter(
 # ============================================================
 
 PUBLIC_MAX_STEPS = 50
-WEBHOOK_RATE_LIMIT_INTEGRATION = 120   # por integration_id
-WEBHOOK_RATE_LIMIT_IP = 240            # por IP
+# NOTA: los límites de rate limiting viven en core/public_rate_limit.py
+# (buckets: telegram_webhook y telegram_webhook_ip). No duplicar aquí.
 
 FALLBACK_BOT_NOT_PUBLISHED = (
     "Este bot no esta disponible en este momento. "
@@ -128,12 +128,10 @@ def _check_rate_limit(integration_id: int, request: Request) -> None:
         check_public_rate_limit(
             key=f"tg:{integration_id}",
             bucket="telegram_webhook",
-            max_per_window=WEBHOOK_RATE_LIMIT_INTEGRATION,
         )
         check_public_rate_limit(
             key=ip,
             bucket="telegram_webhook_ip",
-            max_per_window=WEBHOOK_RATE_LIMIT_IP,
         )
     except PublicRateLimitExceeded as e:
         logger.warning("Webhook Telegram rate-limited: %s", e)
