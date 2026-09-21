@@ -10,6 +10,7 @@ import Badge from '../components/Badge';
 import Input from '../components/Input';
 import NichoSelector from '../components/NichoSelector';
 import NichoBadge from '../components/NichoBadge';
+import ApiKeysPanel from '../components/api-keys/ApiKeysPanel';
 
 const LOGO_URL = '/logo.png';
 const API_URL = import.meta.env.VITE_API_URL || 'https://nuvora-api-1hql.onrender.com';
@@ -31,6 +32,7 @@ const Dashboard = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [showNichoConfig, setShowNichoConfig] = useState(false);
   const [nichoUpdateLoading, setNichoUpdateLoading] = useState(false);
+  const [showApiKeys, setShowApiKeys] = useState(false);
 
   useEffect(() => {
     loadBots();
@@ -313,6 +315,12 @@ const Dashboard = () => {
           <button className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition">
             🔌 Instalar widget
           </button>
+          <button
+            onClick={() => selectedBot ? setShowApiKeys(true) : alert('Selecciona un bot primero')}
+            className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition"
+          >
+            🔑 API Keys
+          </button>
         </nav>
 
         <div className="pt-6 border-t border-white/5 space-y-3">
@@ -562,6 +570,13 @@ const Dashboard = () => {
           </div>
         </div>
       </main>
+
+      {/* Panel API Keys */}
+      <ApiKeysPanel
+        open={showApiKeys}
+        botId={selectedBot?.id}
+        onClose={() => setShowApiKeys(false)}
+      />
     </div>
   );
 };
