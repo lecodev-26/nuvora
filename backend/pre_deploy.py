@@ -27,6 +27,10 @@ from app.models.db_models import (
     Workflow, WorkflowNode, WorkflowTransition,
     UserAIConfig,
     WorkflowTest,
+    PublicSession,
+    ApiKey,
+    TelegramIntegration,
+    TelegramUpdate,
 )
 
 
@@ -150,6 +154,36 @@ def run_migration_14_10():
         print("   (La API arrancará igualmente)")
 
 
+def run_migration_14_11():
+    print("\n" + "=" * 70)
+    print("📦 PASO 9: Migración 14.11 (Telegram Channel)...")
+    print("=" * 70)
+    try:
+        from migrations import migrate_prod_14_11
+        migrate_prod_14_11.run_migration()
+        print("✅ Migración 14.11 completada")
+    except SystemExit:
+        print("⚠️  Migración 14.11 omitida (SQLite o ya migrada)")
+    except Exception as e:
+        print(f"⚠️  Migración 14.11 falló: {e}")
+        print("   (La API arrancará igualmente)")
+
+
+def run_migration_14_11_3():
+    print("\n" + "=" * 70)
+    print("📦 PASO 10: Migración 14.11.3 (public_sessions multicanal)...")
+    print("=" * 70)
+    try:
+        from migrations import migrate_prod_14_11_3
+        migrate_prod_14_11_3.run_migration()
+        print("✅ Migración 14.11.3 completada")
+    except SystemExit:
+        print("⚠️  Migración 14.11.3 omitida (SQLite o ya migrada)")
+    except Exception as e:
+        print(f"⚠️  Migración 14.11.3 falló: {e}")
+        print("   (La API arrancará igualmente)")
+
+
 def main():
     print("\n" + "=" * 70)
     print("🚀 PRE-DEPLOY NUVORA")
@@ -173,6 +207,8 @@ def main():
     run_migration_14_8()
     run_migration_14_9()
     run_migration_14_10()
+    run_migration_14_11()
+    run_migration_14_11_3()
 
     print("\n" + "=" * 70)
     print("🎉 PRE-DEPLOY COMPLETADO")
