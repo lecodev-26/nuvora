@@ -7,6 +7,9 @@ from app.models.db_models import (
     MemoryCategory,
     Source,
     SourceChunk,
+    # Fase 14.11 - Telegram Channel
+    TelegramIntegration,
+    TelegramUpdate,
 )
 
 print("Creando tablas...")

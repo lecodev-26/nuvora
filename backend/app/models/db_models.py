@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, DateTime, Text, Boolean, ForeignKey, UniqueConstraint,
+    Column, Integer, BigInteger, String, DateTime, Text, Boolean, ForeignKey, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -533,3 +533,103 @@ class ApiKey(Base):
 
     def __repr__(self):
         return f"<ApiKey {self.id}: {self.name} (bot={self.bot_id}, prefix={self.key_prefix})>"
+
+# ============================================================
+# TELEGRAM INTEGRATION (Fase 14.11 — Telegram Channel)
+# ============================================================
+
+class TelegramIntegration(Base):
+    """
+    Integración de un bot Nuvora con un bot de Telegram.
+
+    SEGURIDAD:
+        - El token del bot de Telegram NUNCA se guarda en claro.
+        - Se cifra con el mismo mecanismo que BYOK (14.7).
+        - El token NUNCA se devuelve por API.
+
+    RELACIÓN:
+        - 1 bot Nuvora <-> 1 integración Telegram (UNIQUE bot_id).
+        - Si el bot se borra, la integración se borra (CASCADE).
+
+    ESTADOS:
+        - pending:       token configurado, webhook aun no verificado
+        - connected:     webhook verificado, recibiendo mensajes
+        - error:         fallo en la conexion (ver last_error)
+        - disconnected:  desactivada por el usuario
+    """
+    __tablename__ = "telegram_integrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bot_id = Column(
+        Integer,
+        ForeignKey("bots.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    # Identidad del bot de Telegram
+    telegram_bot_id = Column(String(50), nullable=True)      # ID numerico del bot
+    telegram_username = Column(String(100), nullable=True)   # @mi_bot
+
+    # Token cifrado (mismo cifrado que BYOK)
+    encrypted_token = Column(Text, nullable=False)
+
+    # Webhook
+    webhook_secret = Column(String(64), nullable=False, unique=True, index=True)
+    webhook_url = Column(String(500), nullable=True)
+
+    # Estado
+    status = Column(String(20), default="pending", nullable=False, index=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+
+    # Auditoria
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    last_event_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<TelegramIntegration bot={self.bot_id} status={self.status} user={self.telegram_username}>"
+
+
+class TelegramUpdate(Base):
+    """
+    Registro de Updates procesados por Telegram (idempotencia).
+
+    Telegram puede reenviar el mismo Update varias veces.
+    Antes de procesar un Update, insertamos aqui su update_id.
+    Si ya existe (UNIQUE constraint), no se procesa otra vez.
+
+    UNIQUE(integration_id, update_id) garantiza atomicidad
+    ante concurrencia: PostgreSQL rechaza el segundo INSERT.
+
+    Limpieza futura:
+        Los registros antiguos (>7 dias) se pueden purgar
+        periodicamente para no crecer indefinidamente.
+    """
+    __tablename__ = "telegram_updates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    integration_id = Column(
+        Integer,
+        ForeignKey("telegram_integrations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    update_id = Column(BigInteger, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "integration_id", "update_id",
+            name="uq_telegram_update_per_integration",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<TelegramUpdate integration={self.integration_id} update_id={self.update_id}>"
