@@ -49,7 +49,51 @@ from app.core.public_rate_limit import (
 from app.core.api_errors import ApiError, ErrorCode
 
 
-router = APIRouter(prefix="/api/v1", tags=["api-v1"])
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["api-v1"],
+    responses={
+        401: {
+            "description": "API Key inválida, revocada o expirada",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "INVALID_API_KEY",
+                            "message": "API Key is invalid.",
+                        }
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Bot no publicado o sin workflow activo",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "BOT_NOT_PUBLISHED",
+                            "message": "El bot no está publicado.",
+                        }
+                    }
+                }
+            },
+        },
+        429: {
+            "description": "Rate limit excedido",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "RATE_LIMITED",
+                            "message": "Too many requests.",
+                        }
+                    }
+                }
+            },
+        },
+    },
+)
 
 
 # ============================================================
@@ -141,8 +185,32 @@ def api_chat(
     """
     Envía un mensaje al bot asociado a la API key.
 
-    Si no se pasa `session_id` → crea sesión nueva.
-    Si se pasa → recupera sesión (verifica pertenencia al bot).
+    **Autenticación:** `Authorization: Bearer nvr_live_...`
+
+    **Flujo:**
+    1. Valida API key → resuelve el bot asociado
+    2. Verifica que el bot está publicado
+    3. Crea o recupera la sesión (si se pasa `session_id`)
+    4. Ejecuta el workflow activo con `WorkflowEngine`
+    5. Guarda la conversación en analytics (`channel="api"`)
+    6. Devuelve la respuesta
+
+    **Ejemplo:**
+    ```json
+    {
+      "message": "Hola, ¿qué servicios ofrecéis?",
+      "session_id": null
+    }
+    ```
+
+    **Respuesta:**
+    ```json
+    {
+      "answer": "¡Hola! 👋 ¿En qué puedo ayudarte?",
+      "session_id": "abc-123-uuid",
+      "status": "completed"
+    }
+    ```
     """
     bot = ctx.bot
 

@@ -28,7 +28,15 @@ from app.services.api_key_service import (
 )
 
 
-router = APIRouter(prefix="/bots", tags=["api-keys"])
+router = APIRouter(
+    prefix="/bots",
+    tags=["api-keys"],
+    responses={
+        401: {"description": "No autenticado (JWT faltante o inválido)"},
+        403: {"description": "Bot ajeno"},
+        404: {"description": "Bot no encontrado"},
+    },
+)
 
 
 # ============================================================

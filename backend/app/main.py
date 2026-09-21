@@ -16,10 +16,71 @@ from app.routers import (
 
 load_dotenv()
 
+# ============================================================
+# OPENAPI TAGS (14.10.9)
+# ============================================================
+OPENAPI_TAGS = [
+    {
+        "name": "api-v1",
+        "description": (
+            "**Nuvora API v1** — Endpoints públicos para integraciones externas.\n\n"
+            "Autenticación: `Authorization: Bearer nvr_live_...`\n\n"
+            "**Ejemplo:**\n"
+            "```\n"
+            "curl https://nuvora-api-1hql.onrender.com/api/v1/chat \\\n"
+            "  -H \"Authorization: Bearer nvr_live_...\" \\\n"
+            "  -H \"Content-Type: application/json\" \\\n"
+            "  -d '{\"message\": \"Hola\"}'\n"
+            "```"
+        ),
+        "externalDocs": {
+            "description": "Documentación completa",
+            "url": "https://nuvora-chi.vercel.app",
+        },
+    },
+    {
+        "name": "api-keys",
+        "description": (
+            "**Gestión de API Keys** del panel privado (JWT).\n\n"
+            "Permite crear, listar y revocar API keys por bot.\n\n"
+            "El secret completo solo se muestra **una vez** al crear la key."
+        ),
+    },
+    {
+        "name": "public",
+        "description": (
+            "**Bot público** — Endpoints sin JWT para la página `/b/:slug` y el widget.\n\n"
+            "Sin autenticación. Rate limiting por IP."
+        ),
+    },
+    {
+        "name": "bots",
+        "description": "CRUD de bots (panel privado, JWT).",
+    },
+    {
+        "name": "workflows",
+        "description": "CRUD de workflows + ejecución (panel privado, JWT).",
+    },
+    {
+        "name": "tests",
+        "description": "Bot Tester — generar, testear, analizar workflows.",
+    },
+    {
+        "name": "auth",
+        "description": "Registro, login y gestión de sesión JWT.",
+    },
+]
+
+
 app = FastAPI(
     title=os.getenv("APP_NAME", "Nuvora API"),
-    description="Chatbot universal para negocios",
-    version=os.getenv("APP_VERSION", "0.1.0")
+    description=(
+        "Chatbot universal para negocios.\n\n"
+        "Incluye: **Nuvora API v1** para integraciones externas "
+        "(`/api/v1/*`), gestión de API Keys, bots, workflows y Bot Tester."
+    ),
+    version=os.getenv("APP_VERSION", "0.1.0"),
+    openapi_tags=OPENAPI_TAGS,
 )
 
 app.add_middleware(

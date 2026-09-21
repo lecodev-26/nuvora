@@ -24,7 +24,8 @@ class ApiKeyCreate(BaseModel):
         ...,
         min_length=1,
         max_length=100,
-        description="Nombre descriptivo de la key (ej: 'Mi web')",
+        description="Nombre descriptivo de la key",
+        examples=["Mi web", "Bot de Telegram", "Automatización interna"],
     )
 
 
@@ -88,12 +89,14 @@ class ChatRequest(BaseModel):
         min_length=1,
         max_length=2000,
         description="Mensaje del usuario (máx 2000 chars)",
+        examples=["Hola", "¿Qué servicios ofrecéis?"],
     )
     session_id: Optional[str] = Field(
         None,
         min_length=1,
         max_length=64,
-        description="ID de sesión para conversación multi-turno (opcional)",
+        description="ID de sesión para conversación multi-turno (opcional). Si se omite, se crea una nueva.",
+        examples=["550e8400-e29b-41d4-a716-446655440000"],
     )
 
 
