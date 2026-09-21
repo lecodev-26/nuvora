@@ -11,6 +11,7 @@ from app.routers import (
     publication,
     public,
     api_keys,
+    api_v1,
 )
 
 load_dotenv()
@@ -90,6 +91,7 @@ app.include_router(tests.router)  # ← NUEVO 14.8.7 (Bot Tester)
 app.include_router(publication.router)  # ← NUEVO 14.9.5 (Publicación Universal)
 app.include_router(public.router)  # ← NUEVO 14.9.8 (Endpoints públicos)
 app.include_router(api_keys.router)  # ← NUEVO 14.10.6 (Nuvora API - gestión de keys)
+app.include_router(api_v1.router)  # ← NUEVO 14.10.7 (Nuvora API - chat)
 
 @app.get("/health")
 def health_check():

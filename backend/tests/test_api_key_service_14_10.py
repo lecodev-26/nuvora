@@ -536,6 +536,42 @@ def test_touch_after_interval():
         db.close()
 
 
+
+
+# ============================================================
+# CLEANUP
+# ============================================================
+
+def test_cleanup():
+    print("\n" + "=" * 70)
+    print("TEST CLEANUP: borrar datos residuales de este test file")
+    print("=" * 70)
+    from sqlalchemy import text
+    from app.database.config import engine
+
+    pattern = "svc_user_%"
+    with engine.begin() as conn:
+        conn.execute(text("PRAGMA foreign_keys=OFF"))
+        for sql in [
+            "DELETE FROM public_sessions WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM workflow_tests WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM workflow_transitions WHERE workflow_id IN (SELECT id FROM workflows WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)))",
+            "DELETE FROM workflow_nodes WHERE workflow_id IN (SELECT id FROM workflows WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)))",
+            "DELETE FROM workflows WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM conversations WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM source_chunks WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM sources WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM memories WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM memory_categories WHERE bot_id IN (SELECT id FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p))",
+            "DELETE FROM api_keys WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)",
+            "DELETE FROM bots WHERE user_id IN (SELECT id FROM users WHERE email LIKE :p)",
+            "DELETE FROM users WHERE email LIKE :p",
+        ]:
+            conn.execute(text(sql), {"p": pattern})
+        conn.execute(text("PRAGMA foreign_keys=ON"))
+    print(f"  ✅ Datos limpiados (pattern={pattern})")
+
+
 # ============================================================
 # MAIN
 # ============================================================

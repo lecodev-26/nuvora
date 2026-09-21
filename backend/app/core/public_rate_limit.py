@@ -75,6 +75,11 @@ def _get_limit_for(bucket: str) -> int:
         return cfg.message_limit
     if bucket == "public_message_session":
         return cfg.message_per_session_limit
+    # Nuvora API (14.10.7)
+    if bucket == "api_chat":
+        return 60       # por API key
+    if bucket == "api_chat_ip":
+        return 120      # por IP
     # Default conservador
     return 30
 
