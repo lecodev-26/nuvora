@@ -10,6 +10,7 @@ from app.routers import (
     tests,
     publication,
     public,
+    api_keys,
 )
 
 load_dotenv()
@@ -88,6 +89,7 @@ app.include_router(ai_workflows.router)  # ← NUEVO 14.7.7 (AI Workflow Designe
 app.include_router(tests.router)  # ← NUEVO 14.8.7 (Bot Tester)
 app.include_router(publication.router)  # ← NUEVO 14.9.5 (Publicación Universal)
 app.include_router(public.router)  # ← NUEVO 14.9.8 (Endpoints públicos)
+app.include_router(api_keys.router)  # ← NUEVO 14.10.6 (Nuvora API - gestión de keys)
 
 @app.get("/health")
 def health_check():
