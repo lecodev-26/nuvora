@@ -475,8 +475,25 @@ class PublicSession(Base):
     )
     expires_at = Column(DateTime(timezone=True), nullable=False)
 
+    # ============================================================
+    # FASE 14.11 — Multicanal (Widget / API / Telegram)
+    # ============================================================
+    # channel:  canal por el que se abrió la sesión.
+    #           "widget" (default) | "api" | "telegram"
+    #           Default "widget" para no romper filas existentes.
+    # external_id: identificador externo del usuario en el canal.
+    #           Ej: chat_id de Telegram. NULL para widget/api.
+    channel = Column(
+        String(20),
+        nullable=False,
+        default="widget",
+        server_default="widget",
+        index=True,
+    )
+    external_id = Column(String(100), nullable=True, index=True)
+
     def __repr__(self):
-        return f"<PublicSession {self.public_id} (bot={self.bot_id}, status={self.status})>"
+        return f"<PublicSession {self.public_id} (bot={self.bot_id}, channel={self.channel}, status={self.status})>"
 
 
 # ============================================================

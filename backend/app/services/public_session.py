@@ -84,9 +84,22 @@ def _save_messages(session: PublicSession, messages: list, db: Session) -> None:
 # CREAR SESIÓN
 # ============================================================
 
-def create_session(bot: Bot, db: Session) -> PublicSession:
+def create_session(
+    bot: Bot,
+    db: Session,
+    channel: str = "widget",
+    external_id: Optional[str] = None,
+) -> PublicSession:
     """
     Crea una nueva sesión anónima para el bot.
+
+    Args:
+        bot: el bot al que pertenece la sesión.
+        db: sesión SQLAlchemy.
+        channel: canal de la sesión ("widget" | "api" | "telegram").
+                 Default "widget" para compatibilidad con código existente.
+        external_id: identificador externo del usuario en el canal
+                     (ej: chat_id de Telegram). None para widget/api.
 
     - public_id: UUID v4 (identidad técnica de la sesión).
     - bot_id: FK al bot.
@@ -103,6 +116,8 @@ def create_session(bot: Bot, db: Session) -> PublicSession:
         session_data="[]",
         status=STATUS_ACTIVE,
         expires_at=expires,
+        channel=channel,
+        external_id=external_id,
     )
     db.add(sess)
     db.commit()

@@ -242,7 +242,7 @@ def api_chat(
         # Recuperar y validar que pertenece al bot de la key
         sess = get_session(data.session_id, bot, db)
     else:
-        sess = create_session(bot, db)
+        sess = create_session(bot, db, channel="api")
 
     # 4. Guardar mensaje del usuario
     append_user_message(sess, data.message, db)
