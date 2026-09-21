@@ -13,6 +13,7 @@ from app.routers import (
     api_keys,
     api_v1,
     telegram,
+    telegram_webhook,
 )
 
 load_dotenv()
@@ -114,7 +115,8 @@ class PublicCORSMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request, call_next):
-        if request.url.path.startswith("/public/"):
+        # CORS abierto para endpoints públicos y webhooks externos
+        if request.url.path.startswith("/public/") or request.url.path.startswith("/webhooks/"):
             # Simula los headers CORS para permitir cualquier origen
             if request.method == "OPTIONS":
                 from starlette.responses import Response
@@ -155,6 +157,7 @@ app.include_router(public.router)  # ← NUEVO 14.9.8 (Endpoints públicos)
 app.include_router(api_keys.router)  # ← NUEVO 14.10.6 (Nuvora API - gestión de keys)
 app.include_router(api_v1.router)  # ← NUEVO 14.10.7 (Nuvora API - chat)
 app.include_router(telegram.router)  # ← NUEVO 14.11.8 (Telegram - gestión privada)
+app.include_router(telegram_webhook.router)  # ← NUEVO 14.11.9 (Telegram - webhook público)
 
 # ============================================================
 # API v1 — Errores uniformes (14.10.8)

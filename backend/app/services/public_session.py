@@ -173,6 +173,73 @@ def get_session(
 
 
 # ============================================================
+# OBTENER O CREAR POR CANAL + EXTERNAL_ID
+# ============================================================
+
+def get_or_create_by_external(
+    bot: Bot,
+    channel: str,
+    external_id: str,
+    db: Session,
+) -> PublicSession:
+    """
+    Recupera o crea una sesión para (bot, channel, external_id).
+
+    Pensado para canales donde el usuario externo tiene un ID estable
+    (ej: Telegram chat_id). Permite que el mismo usuario Telegram
+    mantenga la misma sesión entre mensajes.
+
+    Args:
+        bot: el bot Nuvora.
+        channel: canal ("telegram", "whatsapp", ...).
+        external_id: ID externo del usuario en ese canal
+                     (ej: chat_id de Telegram).
+        db: sesión SQLAlchemy.
+
+    Returns:
+        PublicSession activa (existente o recién creada).
+
+    Comportamiento:
+        - Si hay una sesión activa con (bot_id, channel, external_id)
+          que NO ha expirado → la devuelve.
+        - Si la sesión existe pero ha expirado → la marca como expired
+          y crea una nueva.
+        - Si no existe → crea una nueva.
+    """
+    if not channel or not external_id:
+        # Fallback: crear sesión normal sin external_id
+        return create_session(bot, db, channel=channel or "widget", external_id=external_id)
+
+    now = _now_utc()
+
+    # Buscar la sesión activa más reciente para este (bot, channel, external_id)
+    sess = (
+        db.query(PublicSession)
+        .filter(
+            PublicSession.bot_id == bot.id,
+            PublicSession.channel == channel,
+            PublicSession.external_id == external_id,
+            PublicSession.status == STATUS_ACTIVE,
+        )
+        .order_by(PublicSession.created_at.desc())
+        .first()
+    )
+
+    if sess:
+        # ¿Sigue viva?
+        expires = _ensure_utc(sess.expires_at)
+        if expires and now > expires:
+            sess.status = STATUS_EXPIRED
+            db.commit()
+            # crear nueva abajo
+        else:
+            return sess
+
+    # Crear nueva
+    return create_session(bot, db, channel=channel, external_id=external_id)
+
+
+# ============================================================
 # MENSAJES
 # ============================================================
 
@@ -266,6 +333,7 @@ def expire_old_sessions(db: Session, limit: int = 500) -> int:
 __all__ = [
     "create_session",
     "get_session",
+    "get_or_create_by_external",
     "get_session_messages",
     "append_message",
     "append_user_message",
