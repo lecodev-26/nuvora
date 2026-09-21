@@ -12,6 +12,7 @@ from app.routers import (
     public,
     api_keys,
     api_v1,
+    telegram,
 )
 
 load_dotenv()
@@ -153,6 +154,7 @@ app.include_router(publication.router)  # ← NUEVO 14.9.5 (Publicación Univers
 app.include_router(public.router)  # ← NUEVO 14.9.8 (Endpoints públicos)
 app.include_router(api_keys.router)  # ← NUEVO 14.10.6 (Nuvora API - gestión de keys)
 app.include_router(api_v1.router)  # ← NUEVO 14.10.7 (Nuvora API - chat)
+app.include_router(telegram.router)  # ← NUEVO 14.11.8 (Telegram - gestión privada)
 
 # ============================================================
 # API v1 — Errores uniformes (14.10.8)
