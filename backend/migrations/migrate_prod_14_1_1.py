@@ -1,7 +1,7 @@
 """
 Migración de producción 14.1.1 — PostgreSQL no destructiva
 ============================================================
-Ejecutar SOLO en Render (PostgreSQL).
+Ejecutar SOLO en PostgreSQL de producción (Aiven).
 
 - NO borra datos
 - NO recrea tablas
@@ -186,7 +186,7 @@ def migrate():
     if db_url.startswith("sqlite"):
         print("\n🛑 ABORTANDO: Motor detectado = SQLite")
         print("   Esta migración está diseñada EXCLUSIVAMENTE para PostgreSQL.")
-        print("   No se ejecutará en SQLite (producción usa PostgreSQL en Render).")
+        print("   No se ejecutará en SQLite (producción usa PostgreSQL en Aiven).")
         print("   Si necesitas migrar en local, borra nuvora.db y ejecuta init_db.py.")
         print("=" * 70)
         sys.exit(0)
