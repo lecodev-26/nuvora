@@ -13,3 +13,13 @@ nuvora.db*
 *.tar.gz
 *.rar
 *.7z
+
+# Backups manuales pre-fase
+*.pre-*
+*.pre_*
+*.before-*
+*.backup
+.backup
+
+# BD backup extra
+*.db.*
