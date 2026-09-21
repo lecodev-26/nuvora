@@ -50,9 +50,31 @@ class TelegramNetworkError(TelegramError):
     pass
 
 
+# ============================================================
+# ERRORES DE NEGOCIO (integración)
+# ============================================================
+
+class TelegramIntegrationError(TelegramError):
+    """Error genérico de negocio de la integración."""
+    pass
+
+
+class TelegramAlreadyConnectedError(TelegramIntegrationError):
+    """Ya existe una integración activa para este bot."""
+    pass
+
+
+class TelegramNotConnectedError(TelegramIntegrationError):
+    """No hay integración para este bot."""
+    pass
+
+
 __all__ = [
     "TelegramError",
     "TelegramAuthError",
     "TelegramAPIError",
     "TelegramNetworkError",
+    "TelegramIntegrationError",
+    "TelegramAlreadyConnectedError",
+    "TelegramNotConnectedError",
 ]

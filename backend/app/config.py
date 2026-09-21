@@ -197,6 +197,7 @@ class AppConfig:
     name: str = "Nuvora API"
     version: str = "0.1.0"
     frontend_url: str = "https://nuvora-chi.vercel.app"
+    backend_public_url: str = "http://localhost:8000"
     database_url: str = "sqlite:///./nuvora.db"
 
     # Sub-configs
@@ -307,6 +308,7 @@ def _build_app_config() -> AppConfig:
         name=os.getenv("APP_NAME", "Nuvora API"),
         version=os.getenv("APP_VERSION", "0.1.0"),
         frontend_url=os.getenv("FRONTEND_URL", "https://nuvora-chi.vercel.app"),
+        backend_public_url=os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000"),
         database_url=os.getenv("DATABASE_URL", "sqlite:///./nuvora.db"),
         ai=_build_ai_config(),
         tests=_build_test_config(),
