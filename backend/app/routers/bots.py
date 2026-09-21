@@ -35,7 +35,7 @@ def create_bot(
         # Negocio (opcional)
         business_name=bot_data.business_name,
         business_type=bot_data.business_type,
-        nicho_id=bot_data.nicho_id or "otro",
+        nicho_id=bot_data.nicho_id,  # None = "desde cero" (sin plantilla)
         # Compatibilidad (deprecados)
         restaurant_name=bot_data.business_name,  # Copia por compatibilidad
         owner_email=current_user.email,           # Copia por compatibilidad

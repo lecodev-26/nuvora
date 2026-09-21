@@ -32,7 +32,7 @@ class LoadedBot:
         # Negocio (opcional)
         self.business_name = bot.business_name or bot.restaurant_name
         self.business_type = bot.business_type
-        self.nicho_id = bot.nicho_id or "otro"
+        self.nicho_id = bot.nicho_id  # Puede ser None ("desde cero")
 
         # Propósito
         self.goal = bot.goal

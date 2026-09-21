@@ -197,21 +197,28 @@ export const NICHOS = {
     ]
   },
 
-  desde_cero: {
-    id: 'desde_cero',
-    name: 'Desde cero',
-    icon: '✨',
-    description: 'Crea un bot personalizado sin plantilla',
-    greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
-    quickQuestions: ['Información', 'Contacto', 'Ayuda'],
-    categories: [],
-    suggestedMemories: [],
-    sampleQuestions: [
-      '¿Qué puedes hacer?',
-      '¿Cómo funciona?',
-      '¿Qué información tienes?',
-    ]
-  },
+};
+
+
+// ============================================================
+// UI — Opción "Desde cero" (NO es un nicho real)
+// ============================================================
+// Se usa en el selector de onboarding como opción destacada.
+// Internamente se envía nicho_id = null al backend.
+export const FROM_SCRATCH_UI = {
+  id: null,
+  name: 'Desde cero',
+  icon: '✨',
+  description: 'Crea un bot personalizado sin plantilla',
+  greeting: '¡Hola! Soy el asistente de {business_name}. ¿En qué puedo ayudarte?',
+  quickQuestions: ['Información', 'Contacto', 'Ayuda'],
+  categories: [],
+  suggestedMemories: [],
+  sampleQuestions: [
+    '¿Qué puedes hacer?',
+    '¿Cómo funciona?',
+    '¿Qué información tienes?',
+  ],
 };
 
 
@@ -228,17 +235,15 @@ export const getNichosList = () => {
 };
 
 export const getRealNichosList = () => {
-  return getNichosList().filter(n => n.id !== 'desde_cero');
+  return getNichosList();
 };
 
 export const getNichoOptions = () => {
-  return getNichosList()
-    .filter(n => n.id !== 'desde_cero')
-    .map(n => ({
-      value: n.id,
-      label: `${n.icon} ${n.name}`,
-      description: n.description
-    }));
+  return getNichosList().map(n => ({
+    value: n.id,
+    label: `${n.icon} ${n.name}`,
+    description: n.description
+  }));
 };
 
 export const getQuickQuestions = (nichoId) => {

@@ -39,7 +39,7 @@ def setup_test_data():
                 user_id=user.id,
                 name="Bot Integrity Test",
                 business_name="Test Business",
-                nicho_id="desde_cero",
+                nicho_id=None,
                 is_active=True,
                 is_published=False,
                 answer_mode="strict",

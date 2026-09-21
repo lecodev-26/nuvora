@@ -48,7 +48,7 @@ def _create_bot(token: str, suffix: str) -> int:
         json={
             "name": f"Bot Router {suffix}",
             "business_name": f"Test {suffix}",
-            "nicho_id": "desde_cero",
+            "nicho_id": None,
         },
         headers={"Authorization": f"Bearer {token}"},
     )

@@ -28,7 +28,7 @@ const Onboarding = () => {
     business_name: '',
     business_type: '',
     owner_email: user?.email || '',
-    nicho_id: 'desde_cero', // Por defecto: desde cero
+    nicho_id: null, // null = sin plantilla ("desde cero")
     goal: '',
     personality: '',
     tone: '',
@@ -43,7 +43,7 @@ const Onboarding = () => {
   const [isTyping, setIsTyping] = useState(false);
 
   // ¿El usuario eligió "desde cero"?
-  const isFromScratch = botData.nicho_id === 'desde_cero';
+  const isFromScratch = !botData.nicho_id;
 
   // ============================================================
   // PASO 1 — CREAR BOT

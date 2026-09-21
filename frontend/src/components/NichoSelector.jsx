@@ -1,5 +1,5 @@
 import React from 'react';
-import { getRealNichosList, getNicho } from '../data/nichos';
+import { getRealNichosList, FROM_SCRATCH_UI } from '../data/nichos';
 
 const NichoSelector = ({
   selected,
@@ -9,7 +9,6 @@ const NichoSelector = ({
   showFromScratch = true,
 }) => {
   const nichos = getRealNichosList();
-  const desdeCero = getNicho('desde_cero');
 
   return (
     <div className={`grid ${columns} gap-3 ${className}`}>
@@ -17,28 +16,28 @@ const NichoSelector = ({
       {showFromScratch && (
         <button
           type="button"
-          onClick={() => onSelect('desde_cero')}
+          onClick={() => onSelect(null)}
           className={`relative flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all duration-200 text-center group ${
-            selected === 'desde_cero'
+            selected == null
               ? 'border-cyan-500/60 bg-cyan-500/10 shadow-glow'
               : 'border-dashed border-white/20 bg-white/[0.03] hover:border-cyan-500/40 hover:bg-cyan-500/5'
           }`}
         >
-          {selected === 'desde_cero' && (
+          {selected == null && (
             <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-gradient-primary flex items-center justify-center text-xs text-white font-bold">
               ✓
             </div>
           )}
-          <span className="text-3xl">{desdeCero.icon}</span>
+          <span className="text-3xl">{FROM_SCRATCH_UI.icon}</span>
           <span
             className={`text-sm font-semibold transition-colors ${
-              selected === 'desde_cero' ? 'text-cyan-300' : 'text-white/70 group-hover:text-cyan-300'
+              selected == null ? 'text-cyan-300' : 'text-white/70 group-hover:text-cyan-300'
             }`}
           >
-            {desdeCero.name}
+            {FROM_SCRATCH_UI.name}
           </span>
           <span className="text-[10px] text-white/40 leading-tight line-clamp-2">
-            {desdeCero.description}
+            {FROM_SCRATCH_UI.description}
           </span>
         </button>
       )}
