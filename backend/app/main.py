@@ -14,6 +14,7 @@ from app.routers import (
     api_v1,
     telegram,
     telegram_webhook,
+    creator,
 )
 
 load_dotenv()
@@ -158,6 +159,7 @@ app.include_router(api_keys.router)  # ← NUEVO 14.10.6 (Nuvora API - gestión 
 app.include_router(api_v1.router)  # ← NUEVO 14.10.7 (Nuvora API - chat)
 app.include_router(telegram.router)  # ← NUEVO 14.11.8 (Telegram - gestión privada)
 app.include_router(telegram_webhook.router)  # ← NUEVO 14.11.9 (Telegram - webhook público)
+app.include_router(creator.router)  # ← NUEVO 14.12.3 (Creator Mode)
 
 # ============================================================
 # API v1 — Errores uniformes (14.10.8)
