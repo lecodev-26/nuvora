@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { BotProvider } from './context/BotContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import BotsList from './pages/BotsList';
 import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
 import Training from './pages/Training';
@@ -90,7 +91,7 @@ function AppContent() {
         path="/dashboard"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <BotsList />
           </ProtectedRoute>
         }
       />
