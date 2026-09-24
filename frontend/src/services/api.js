@@ -53,6 +53,7 @@ export const botService = {
 export const memoryService = {
   add: (data) => api.post('/memories/', data),
   getByBot: (botId) => api.get(`/memories/${botId}`),
+  remove: (memoryId) => api.delete(`/memories/${memoryId}`),
 };
 
 // ============================================================
