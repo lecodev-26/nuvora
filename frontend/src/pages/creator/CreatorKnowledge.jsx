@@ -191,13 +191,13 @@ const CreatorKnowledge = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-white/10">
+      <div className="flex gap-1 border-b border-white/10 overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setActiveTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px flex items-center gap-2 ${
+            className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${
               activeTab === t.id
                 ? 'text-white border-cyan-400'
                 : 'text-white/50 border-transparent hover:text-white/80'

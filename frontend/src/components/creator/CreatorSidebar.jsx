@@ -48,7 +48,7 @@ const SECTION_GROUPS = [
   },
 ];
 
-const CreatorSidebar = ({ botId, botName = 'Mi Bot', botStatus = 'building' }) => {
+const CreatorSidebar = ({ botId, botName = 'Mi Bot', botStatus = 'building', onNavigate }) => {
   const statusConfig = {
     ready: { label: 'Listo', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' },
     building: { label: 'En construcción', className: 'bg-amber-500/15 text-amber-300 border-amber-500/25' },
@@ -93,6 +93,7 @@ const CreatorSidebar = ({ botId, botName = 'Mi Bot', botStatus = 'building' }) =
                   key={item.path}
                   to={`/bots/${botId}${item.path ? '/' + item.path : ''}`}
                   end={item.end}
+                  onClick={() => onNavigate?.()}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
                       isActive

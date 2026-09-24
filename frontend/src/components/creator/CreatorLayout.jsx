@@ -81,6 +81,7 @@ const CreatorLayout = ({
               botId={botId}
               botName={botName}
               botStatus={botStatus}
+              onNavigate={closeDrawer}
             />
           </div>
         </div>
