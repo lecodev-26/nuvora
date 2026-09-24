@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { botService, trainingService, memoryService } from '../services/api';
 import Button from '../components/Button';
 import Card from '../components/Card';
@@ -327,8 +327,12 @@ const AddKnowledgeModal = ({ open, rec, botId, onClose, onSaved }) => {
 
 const Training = () => {
   const navigate = useNavigate();
+  const params = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlBotId = searchParams.get('bot_id');
+  // Soporta ambas rutas:
+  //   - /bots/:botId/training   → params.botId (ruta nueva)
+  //   - /training?bot_id=X      → searchParams (ruta legacy)
+  const urlBotId = params.botId || searchParams.get('bot_id');
 
   const [bots, setBots] = useState([]);
   const [selectedBotId, setSelectedBotId] = useState(urlBotId ? parseInt(urlBotId) : null);

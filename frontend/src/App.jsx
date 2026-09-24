@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BotProvider } from './context/BotContext';
 import Login from './pages/Login';
@@ -11,6 +11,12 @@ import WorkflowBuilder from './pages/WorkflowBuilder';
 import WorkflowsList from './pages/WorkflowsList';
 import BotTester from './pages/BotTester';
 import PublicBot from './pages/PublicBot';
+import CreatorLayout from './components/creator/CreatorLayout';
+import CreatorOverview from './pages/creator/CreatorOverview';
+import CreatorConfig from './pages/creator/CreatorConfig';
+import CreatorKnowledge from './pages/creator/CreatorKnowledge';
+import CreatorPublication from './pages/creator/CreatorPublication';
+import CreatorChannels from './pages/creator/CreatorChannels';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -48,6 +54,19 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+/**
+ * LegacyRedirectTraining — Redirige /training?bot_id=X a /bots/X/training.
+ * Si no hay bot_id, redirige a /dashboard.
+ */
+function LegacyRedirectTraining() {
+  const [searchParams] = useSearchParams();
+  const botId = searchParams.get('bot_id');
+  if (botId) {
+    return <Navigate to={`/bots/${botId}/training`} replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
 function AppContent() {
   return (
     <Routes>
@@ -83,45 +102,6 @@ function AppContent() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/training"
-        element={
-          <ProtectedRoute>
-            <Training />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Workflows: lista → /workflows/:botId */}
-      <Route
-        path="/workflows/:botId"
-        element={
-          <ProtectedRoute>
-            <WorkflowsList />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Workflows: nuevo → /workflows/:botId/new */}
-      <Route
-        path="/workflows/:botId/new"
-        element={
-          <ProtectedRoute>
-            <WorkflowBuilder />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Workflows: editar existente → /workflows/:botId/:workflowId */}
-      <Route
-        path="/workflows/:botId/:workflowId"
-        element={
-          <ProtectedRoute>
-            <WorkflowBuilder />
-          </ProtectedRoute>
-        }
-      />
-
       {/* Bot Tester → /bots/:botId/tester */}
       <Route
         path="/bots/:botId/tester"
@@ -132,7 +112,96 @@ function AppContent() {
         }
       />
 
-      {/* Bot Público → /b/:identifier (sin auth, ni protected ni public) */}
+      {/* ============================================================ */}
+      {/* CREATOR WORKSPACE (14.12.5) - nuevas rutas bajo /bots/:botId */}
+      {/* ============================================================ */}
+
+      <Route
+        path="/bots/:botId"
+        element={
+          <ProtectedRoute>
+            <CreatorLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<CreatorOverview />} />
+        <Route path="config" element={<CreatorConfig />} />
+        <Route path="knowledge" element={<CreatorKnowledge />} />
+        <Route path="publication" element={<CreatorPublication />} />
+        <Route path="channels" element={<CreatorChannels />} />
+      </Route>
+
+      {/* Sub-rutas que reutilizan páginas existentes con CreatorLayout */}
+      <Route
+        path="/bots/:botId/workflows"
+        element={
+          <ProtectedRoute>
+            <CreatorLayout>
+              <WorkflowsList />
+            </CreatorLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/bots/:botId/workflows/new"
+        element={
+          <ProtectedRoute>
+            <CreatorLayout>
+              <WorkflowBuilder />
+            </CreatorLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/bots/:botId/workflows/:workflowId"
+        element={
+          <ProtectedRoute>
+            <CreatorLayout>
+              <WorkflowBuilder />
+            </CreatorLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/bots/:botId/training"
+        element={
+          <ProtectedRoute>
+            <CreatorLayout>
+              <Training />
+            </CreatorLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ============================================================ */}
+      {/* LEGACY REDIRECTS (14.12.5) - mantienen URLs antiguas vivas     */}
+      {/* Revisión de eliminación: fase 14.14                            */}
+      {/* ============================================================ */}
+
+      <Route
+        path="/training"
+        element={<LegacyRedirectTraining />}
+      />
+
+      <Route
+        path="/workflows/:botId"
+        element={<Navigate to="/bots/:botId/workflows" replace />}
+      />
+
+      <Route
+        path="/workflows/:botId/new"
+        element={<Navigate to="/bots/:botId/workflows/new" replace />}
+      />
+
+      <Route
+        path="/workflows/:botId/:workflowId"
+        element={<Navigate to="/bots/:botId/workflows/:workflowId" replace />}
+      />
+
+      {/* Bot Público → /b/:identifier (sin auth) */}
       <Route path="/b/:identifier" element={<PublicBot />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
