@@ -1,17 +1,41 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
+import PublicationPanel from '../../components/publication/PublicationPanel';
+
+/**
+ * CreatorPublication — Página de Publicación dentro de Creator Mode.
+ *
+ * Monta el PublicationPanel existente (modal) abierto por defecto.
+ * Al cerrar → vuelve al Overview.
+ *
+ * Reutiliza el panel existente sin duplicar lógica.
+ */
 const CreatorPublication = () => {
   const { botId } = useParams();
+  const navigate = useNavigate();
+
+  const handleClose = () => {
+    navigate(`/bots/${botId}`);
+  };
+
+  const handlePublished = () => {
+    // Opcional: refrescar status o hacer algo al publicar
+    // Por ahora, no-op (el panel se encarga de la UI)
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-        <h2 className="text-xl font-semibold mb-2">🌐 Publicación</h2>
-        <p className="text-white/60 text-sm">
-          Placeholder — Bot #{botId}. Se implementa en 14.12.16.
-        </p>
+    <>
+      <div className="text-center text-white/50 text-sm py-8">
+        Cargando publicación...
       </div>
-    </div>
+      <PublicationPanel
+        open={true}
+        botId={parseInt(botId)}
+        onClose={handleClose}
+        onPublished={handlePublished}
+      />
+    </>
   );
 };
 
