@@ -44,6 +44,7 @@ export const botService = {
   create: (data) => api.post('/bots/', data),
   list: () => api.get('/bots/'),
   get: (id) => api.get(`/bots/${id}`),
+  update: (id, data) => api.patch(`/bots/${id}`, data),
 };
 
 // ============================================================
