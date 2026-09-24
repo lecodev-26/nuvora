@@ -42,7 +42,7 @@ const TestResults = ({ result, botId, workflowId, onClose }) => {
 
   const goToNode = (nodeId) => {
     if (!botId || !workflowId) return;
-    navigate(`/workflows/${botId}/${workflowId}?node=${nodeId}`);
+    navigate(`/bots/${botId}/workflows/${workflowId}?node=${nodeId}`);
   };
 
   return (

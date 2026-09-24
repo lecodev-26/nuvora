@@ -382,7 +382,7 @@ const WorkflowBuilder = () => {
       } else {
         res = await workflowService.create(botId, payload);
         const newId = res.data.id;
-        navigate(`/workflows/${botId}/${newId}`, { replace: true });
+        navigate(`/bots/${botId}/workflows/${newId}`, { replace: true });
       }
 
       saveSuccess();

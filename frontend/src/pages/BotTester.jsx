@@ -235,7 +235,7 @@ const BotTester = () => {
     return (
       <div className="min-h-screen bg-navy flex flex-col items-center justify-center gap-4 p-6">
         <div className="text-white/60">No hay workflows en este bot.</div>
-        <Button variant="secondary" onClick={() => navigate(`/workflows/${botId}`)}>
+        <Button variant="secondary" onClick={() => navigate(`/bots/${botId}/workflows`)}>
           Ir a Workflows
         </Button>
       </div>
@@ -250,7 +250,7 @@ const BotTester = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(`/workflows/${botId}/${workflowId}`)}
+            onClick={() => navigate(`/bots/${botId}/workflows/${workflowId}`)}
           >
             ← Volver al Builder
           </Button>

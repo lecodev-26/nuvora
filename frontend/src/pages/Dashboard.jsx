@@ -303,13 +303,13 @@ const Dashboard = () => {
             📈 Analíticas
           </button>
           <button
-            onClick={() => navigate(`/training${selectedBot ? `?bot_id=${selectedBot.id}` : ''}`)}
+            onClick={() => selectedBot ? navigate(`/bots/${selectedBot.id}/training`) : alert('Selecciona un bot primero')}
             className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition"
           >
             🎓 Training Assistant
           </button>
           <button
-            onClick={() => selectedBot ? navigate(`/workflows/${selectedBot.id}`) : alert('Selecciona un bot primero')}
+            onClick={() => selectedBot ? navigate(`/bots/${selectedBot.id}/workflows`) : alert('Selecciona un bot primero')}
             className="w-full text-left px-4 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 transition"
           >
             🔀 Workflows

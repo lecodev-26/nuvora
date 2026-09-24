@@ -122,7 +122,7 @@ const WorkflowsList = () => {
           <Button
             variant="primary"
             size="sm"
-            onClick={() => navigate(`/workflows/${botId}/new`)}
+            onClick={() => navigate(`/bots/${botId}/workflows/new`)}
           >
             + Nuevo workflow
           </Button>
@@ -154,7 +154,7 @@ const WorkflowsList = () => {
             </p>
             <Button
               variant="primary"
-              onClick={() => navigate(`/workflows/${botId}/new`)}
+              onClick={() => navigate(`/bots/${botId}/workflows/new`)}
             >
               Crear mi primer workflow
             </Button>
@@ -173,7 +173,7 @@ const WorkflowsList = () => {
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <Link
-                      to={`/workflows/${botId}/${wf.id}`}
+                      to={`/bots/${botId}/workflows/${wf.id}`}
                       className="text-white font-semibold text-lg hover:text-cyan-300 transition-colors line-clamp-2"
                     >
                       {wf.name}
@@ -204,7 +204,7 @@ const WorkflowsList = () => {
                     variant="primary"
                     size="sm"
                     className="flex-1"
-                    onClick={() => navigate(`/workflows/${botId}/${wf.id}`)}
+                    onClick={() => navigate(`/bots/${botId}/workflows/${wf.id}`)}
                   >
                     Abrir
                   </Button>
