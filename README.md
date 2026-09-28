@@ -1,3 +1,3 @@
 <p align="center">
-  <img src="./public/og-image.jpg" width="120" alt="Nuvora" />
+  <img src="assets/logo.png" width="120" alt="Nuvora" />
 </p>
